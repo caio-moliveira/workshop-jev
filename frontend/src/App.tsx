@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { getConfig, getPricing } from './lib/api'
 import type { GraphConfig, Pricing } from './lib/types'
+import { Batch } from './pages/Batch'
 import { Config } from './pages/Config'
 import { Playground } from './pages/Playground'
 
@@ -18,6 +19,7 @@ function App() {
   const [config, setConfig] = useState<GraphConfig | null>(null)
   const [pricing, setPricing] = useState<Pricing | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [openTicket, setOpenTicket] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([getConfig(), getPricing()])
@@ -66,8 +68,23 @@ function App() {
         {config && tab === 'config' && (
           <Config config={config} pricing={pricing} onSaved={setConfig} />
         )}
-        {config && tab === 'playground' && <Playground config={config} />}
-        {tab === 'batch' && <p className="text-slate-500">Execução em lote: em breve.</p>}
+        {/* Playground e Lote ficam montados: trocar de aba não perde a execução nem o relatório. */}
+        {config && (
+          <div hidden={tab !== 'playground'}>
+            <Playground key={openTicket ?? ''} config={config} ticketId={openTicket} />
+          </div>
+        )}
+        {config && (
+          <div hidden={tab !== 'batch'}>
+            <Batch
+              config={config}
+              onOpenTicket={(ticketId) => {
+                setOpenTicket(ticketId)
+                setTab('playground')
+              }}
+            />
+          </div>
+        )}
       </main>
     </div>
   )

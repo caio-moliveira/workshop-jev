@@ -10,6 +10,7 @@ import operator
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -21,7 +22,7 @@ from app.metrics.pricing import load_pricing
 from app.providers.base import DecisionProvider, NodeSpec, ProviderResult
 from app.providers.jev import JevProvider
 from app.providers.llm import LLMProvider
-from app.providers.replay import ReplayProvider
+from app.providers.replay import FIXTURES_DIR, ReplayProvider
 from app.providers.reply import LLMReplyWriter, ReplayReplyWriter, ReplyResult, ReplyWriter
 from app.specs import GUARDRAIL, TRIAGE, VERIFY
 
@@ -87,12 +88,14 @@ class Providers:
         return self.jev if name == "jev" else self.llm_by_node.get(node, self.llm)
 
 
-def build_providers(config: GraphConfig, simulate_latency: bool = True) -> Providers:
+def build_providers(
+    config: GraphConfig, simulate_latency: bool = True, fixtures_dir: Path = FIXTURES_DIR
+) -> Providers:
     if config.mode == "replay":
         return Providers(
-            jev=ReplayProvider("jev", simulate_latency),
-            llm=ReplayProvider("llm", simulate_latency),
-            reply=ReplayReplyWriter(simulate_latency),
+            jev=ReplayProvider("jev", simulate_latency, fixtures_dir),
+            llm=ReplayProvider("llm", simulate_latency, fixtures_dir),
+            reply=ReplayReplyWriter(simulate_latency, fixtures_dir),
         )
     pricing = load_pricing()
     return Providers(

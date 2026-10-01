@@ -133,3 +133,76 @@ export type RunEvent =
 export const isError = (
   outcome: ProviderOutcome,
 ): outcome is { provider: ProviderName; is_primary?: boolean; error: string } => 'error' in outcome
+
+// Lote (app/metrics/aggregator.py e app/batches.py)
+
+export interface QuestionSummary {
+  n: number
+  accuracy: number | null
+  f1_macro: number | null
+  mae: number | null
+}
+
+export interface NodeSummary {
+  calls: number
+  latency_p50: number | null
+  latency_p95: number | null
+  tokens_in: number
+  tokens_out: number
+  cost_total: number
+  parse_fail_rate: number
+  out_of_schema_rate: number
+  latencies: number[]
+}
+
+export interface ProviderSummary {
+  model: string
+  accuracy: number | null
+  cost_total: number
+  cost_per_1000: number
+  latency_p95: number | null
+}
+
+export interface TicketRow {
+  ticket_id: string
+  tags: string[]
+  action: Action | null
+  answers: Record<string, Partial<Record<ProviderName, string | number | null>>>
+  labels: Record<string, string | number | boolean>
+  disagrees: boolean
+  wrong: boolean
+  has_error: boolean
+}
+
+export interface BatchReport {
+  batch_id: string
+  config_version: string
+  mode: Mode
+  llm_model: string
+  primary: ProviderName
+  n: number
+  errors: number
+  by_provider: Partial<Record<ProviderName, ProviderSummary>>
+  by_node: Record<string, Partial<Record<ProviderName, NodeSummary>>>
+  by_question: Record<string, Partial<Record<ProviderName, QuestionSummary>>>
+  agreement: Record<string, number>
+  tickets: TicketRow[]
+}
+
+export interface BatchEstimate {
+  n: number
+  estimated_cost_usd: number | null
+}
+
+export type BatchEvent =
+  | { type: 'batch.started'; batch_id: string; data: { n: number } }
+  | {
+      type: 'batch.progress'
+      batch_id: string
+      data: {
+        done: number
+        total: number
+        ticket: { ticket_id: string; action?: Action; error?: string }
+      }
+    }
+  | { type: 'batch.finished'; batch_id: string; data: BatchReport }

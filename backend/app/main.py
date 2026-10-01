@@ -1,30 +1,37 @@
-"""API do backend: configuração, dataset e execução de um ticket com SSE (PRD 11)."""
+"""API do backend: configuração, dataset, execução de um ticket e de lotes, com SSE (PRD 11)."""
 
 from collections.abc import AsyncIterable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.sse import EventSourceResponse, ServerSentEvent
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
+from app.batches import MAX_BATCH, estimate_cost, export_csv, run_batch, select_tickets
 from app.config import GraphConfig, load_config
 from app.dataset import Ticket, TicketInput, load_golden_set
-from app.graph import RunResult, new_run_id, run_ticket
+from app.graph import RunResult, build_providers, new_run_id, run_ticket
+from app.metrics.aggregator import BatchReport
 from app.metrics.pricing import Pricing, load_pricing
-from app.providers.replay import has_fixture
-from app.runs import RunChannel, RunRegistry
+from app.providers.replay import FIXTURES_DIR, has_fixture
+from app.runs import EventChannel, Registry
 from app.store import RUNS_DIR, RunStore
 
 
 class AppState:
-    def __init__(self, runs_dir: Path, simulate_latency: bool):
+    def __init__(self, runs_dir: Path, simulate_latency: bool, fixtures_dir: Path):
         # PUT /config vale em memória: graph.yaml só muda por commit `config:`.
         self.config = load_config()
-        self.registry = RunRegistry()
+        self.runs = Registry()
+        self.batches = Registry()
         self.store = RunStore(runs_dir)
         self.simulate_latency = simulate_latency
+        self.fixtures_dir = fixtures_dir
+
+    def providers(self, config: GraphConfig):
+        return build_providers(config, self.simulate_latency, self.fixtures_dir)
 
 
 def get_state(request: Request) -> AppState:
@@ -34,15 +41,25 @@ def get_state(request: Request) -> AppState:
 StateDep = Annotated[AppState, Depends(get_state)]
 
 
-def get_channel(run_id: str, state: StateDep) -> RunChannel:
-    # Resolvido antes de abrir o stream: dentro do gerador o 404 já não chega ao cliente.
-    channel = state.registry.get(run_id)
+# Canais resolvidos antes de abrir o stream: dentro do gerador o 404 já não chega ao cliente.
+
+
+def get_run_channel(run_id: str, state: StateDep) -> EventChannel:
+    channel = state.runs.get(run_id)
     if channel is None:
         raise HTTPException(404, f"execução {run_id} não encontrada")
     return channel
 
 
-ChannelDep = Annotated[RunChannel, Depends(get_channel)]
+def get_batch_channel(batch_id: str, state: StateDep) -> EventChannel:
+    channel = state.batches.get(batch_id)
+    if channel is None:
+        raise HTTPException(404, f"lote {batch_id} não encontrado")
+    return channel
+
+
+RunChannelDep = Annotated[EventChannel, Depends(get_run_channel)]
+BatchChannelDep = Annotated[EventChannel, Depends(get_batch_channel)]
 
 
 class RunRequest(BaseModel):
@@ -64,14 +81,36 @@ class DatasetTicket(Ticket):
     replayable: bool
 
 
-def create_app(runs_dir: Path = RUNS_DIR, simulate_latency: bool = True) -> FastAPI:
+class BatchRequest(BaseModel):
+    n: int = Field(default=100, ge=1, le=MAX_BATCH)
+    tag: str | None = None
+
+
+class BatchEstimate(BaseModel):
+    n: int  # quantos tickets vão rodar de fato (em replay, só os que têm gravação)
+    estimated_cost_usd: float | None
+
+
+class BatchCreated(BatchEstimate):
+    batch_id: str
+
+
+async def stream(channel: EventChannel) -> AsyncIterable[ServerSentEvent]:
+    async for event in channel.subscribe():
+        yield ServerSentEvent(data=event.model_dump(mode="json"), event=event.type)
+
+
+def create_app(
+    runs_dir: Path = RUNS_DIR, simulate_latency: bool = True, fixtures_dir: Path = FIXTURES_DIR
+) -> FastAPI:
     app = FastAPI(title="JEV Jornada")
-    app.state.jev = AppState(runs_dir, simulate_latency)
+    app.state.jev = AppState(runs_dir, simulate_latency, fixtures_dir)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["Content-Disposition"],
     )
 
     @app.get("/health")
@@ -93,11 +132,12 @@ def create_app(runs_dir: Path = RUNS_DIR, simulate_latency: bool = True) -> Fast
 
     @app.get("/dataset")
     def get_dataset(
+        state: StateDep,
         tag: Annotated[str | None, Query()] = None,
         limit: Annotated[int | None, Query(ge=1)] = None,
     ) -> list[DatasetTicket]:
         return [
-            DatasetTicket(**t.model_dump(), replayable=has_fixture(t.id))
+            DatasetTicket(**t.model_dump(), replayable=has_fixture(t.id, state.fixtures_dir))
             for t in load_golden_set(tag=tag, limit=limit)
         ]
 
@@ -113,21 +153,21 @@ def create_app(runs_dir: Path = RUNS_DIR, simulate_latency: bool = True) -> Fast
             ticket = next((t for t in load_golden_set() if t.id == request.ticket_id), None)
             if ticket is None:
                 raise HTTPException(404, f"ticket {request.ticket_id} não está no golden set")
-            if config.mode == "replay" and not has_fixture(ticket.id):
+            if config.mode == "replay" and not has_fixture(ticket.id, state.fixtures_dir):
                 raise HTTPException(422, f"sem gravação de replay para {ticket.id}")
 
-        channel = state.registry.open(run_id)
-        state.registry.spawn(execute(state, channel, ticket, config, run_id))
+        channel = state.runs.open(run_id)
+        state.runs.spawn(execute(state, channel, ticket, config, run_id))
         return RunCreated(run_id=run_id)
 
     @app.get("/runs/{run_id}/events", response_class=EventSourceResponse)
-    async def run_events(channel: ChannelDep) -> AsyncIterable[ServerSentEvent]:
-        async for event in channel.subscribe():
-            yield ServerSentEvent(data=event.model_dump(mode="json"), event=event.type)
+    async def run_events(channel: RunChannelDep) -> AsyncIterable[ServerSentEvent]:
+        async for event in stream(channel):
+            yield event
 
     @app.get("/runs/{run_id}")
     async def get_run(run_id: str, state: StateDep) -> RunResult:
-        channel = state.registry.get(run_id)
+        channel = state.runs.get(run_id)
         if channel is not None:
             if not channel.done:
                 raise HTTPException(409, f"execução {run_id} ainda em andamento")
@@ -139,19 +179,80 @@ def create_app(runs_dir: Path = RUNS_DIR, simulate_latency: bool = True) -> Fast
             raise HTTPException(404, f"execução {run_id} não encontrada")
         return result
 
+    @app.get("/batches/estimate")
+    def get_batch_estimate(
+        state: StateDep,
+        n: Annotated[int, Query(ge=1, le=MAX_BATCH)] = 100,
+        tag: Annotated[str | None, Query()] = None,
+    ) -> BatchEstimate:
+        count = len(select_tickets(state.config, n, tag, state.fixtures_dir))
+        cost = estimate_cost(state.config, count, load_pricing(), state.fixtures_dir)
+        return BatchEstimate(n=count, estimated_cost_usd=cost)
+
+    @app.post("/batches", status_code=status.HTTP_202_ACCEPTED)
+    async def post_batch(request: BatchRequest, state: StateDep) -> BatchCreated:
+        # A configuração é copiada: PUT /config durante o lote não afeta este lote.
+        config = state.config.model_copy(deep=True)
+        tickets = select_tickets(config, request.n, request.tag, state.fixtures_dir)
+        if not tickets:
+            raise HTTPException(422, "nenhum ticket para executar com esse filtro")
+        batch_id = new_run_id()
+        channel = state.batches.open(batch_id)
+        state.batches.spawn(
+            run_batch(batch_id, tickets, config, state.providers(config), state.store, channel)
+        )
+        cost = estimate_cost(config, len(tickets), load_pricing(), state.fixtures_dir)
+        return BatchCreated(batch_id=batch_id, n=len(tickets), estimated_cost_usd=cost)
+
+    @app.get("/batches/{batch_id}/events", response_class=EventSourceResponse)
+    async def batch_events(channel: BatchChannelDep) -> AsyncIterable[ServerSentEvent]:
+        async for event in stream(channel):
+            yield event
+
+    @app.get("/batches/{batch_id}/report")
+    def get_batch_report(batch_id: str, state: StateDep) -> BatchReport:
+        return load_report(state, batch_id)
+
+    @app.get("/batches/{batch_id}/export")
+    def export_batch(
+        batch_id: str, state: StateDep, format: Annotated[Literal["csv", "json"], Query()] = "json"
+    ) -> Response:
+        report = load_report(state, batch_id)
+        filename = f"lote-{batch_id}.{format}"
+        if format == "json":
+            body, media_type = report.model_dump_json(indent=2), "application/json"
+        else:
+            channel = state.batches.get(batch_id)
+            results = channel.extra.get("results") if channel else None
+            results = results or state.store.runs_for_batch(batch_id)
+            body, media_type = export_csv(report, results), "text/csv; charset=utf-8"
+        return Response(
+            body,
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     return app
 
 
+def load_report(state: AppState, batch_id: str) -> BatchReport:
+    channel = state.batches.get(batch_id)
+    if channel is not None and not channel.done:
+        raise HTTPException(409, f"lote {batch_id} ainda em andamento")
+    if channel is not None and channel.result is not None:
+        return channel.result
+    saved = state.store.load_report(batch_id)
+    if saved is None:
+        raise HTTPException(404, f"lote {batch_id} não encontrado")
+    return BatchReport.model_validate_json(saved)
+
+
 async def execute(
-    state: AppState, channel: RunChannel, ticket: TicketInput, config: GraphConfig, run_id: str
+    state: AppState, channel: EventChannel, ticket: TicketInput, config: GraphConfig, run_id: str
 ) -> None:
     try:
         result = await run_ticket(
-            ticket,
-            config,
-            emit=channel.publish,
-            simulate_latency=state.simulate_latency,
-            run_id=run_id,
+            ticket, config, emit=channel.publish, providers=state.providers(config), run_id=run_id
         )
     except Exception as error:
         await channel.finish(error=f"{type(error).__name__}: {error}")

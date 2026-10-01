@@ -13,6 +13,8 @@ providers: # por node de decisão: llm | jev | both
 
 llm_model_overrides: {} # por node, opcional: { triage: "openai:gpt-6-sol" }
 
+batch_concurrency: 5 # lote: chamadas simultâneas, para não estourar rate limit
+
 thresholds:
   guardrail_block: 0.70
   triage_min_confidence: 0.80

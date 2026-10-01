@@ -1,5 +1,5 @@
 import { API_URL } from './api'
-import type { RunEvent } from './types'
+import type { BatchEvent, RunEvent } from './types'
 
 const RUN_EVENTS = [
   'run.started',
@@ -19,5 +19,19 @@ export function subscribeRun(runId: string, onEvent: (event: RunEvent) => void):
     if (event.type === 'run.finished') source.close()
   }
   for (const type of RUN_EVENTS) source.addEventListener(type, handle)
+  return () => source.close()
+}
+
+const BATCH_EVENTS = ['batch.started', 'batch.progress', 'batch.finished'] as const
+
+/** Assina o progresso de um lote. Devolve a função que cancela a assinatura. */
+export function subscribeBatch(batchId: string, onEvent: (event: BatchEvent) => void): () => void {
+  const source = new EventSource(`${API_URL}/batches/${batchId}/events`)
+  const handle = (message: MessageEvent<string>) => {
+    const event = JSON.parse(message.data) as BatchEvent
+    onEvent(event)
+    if (event.type === 'batch.finished') source.close()
+  }
+  for (const type of BATCH_EVENTS) source.addEventListener(type, handle)
   return () => source.close()
 }
