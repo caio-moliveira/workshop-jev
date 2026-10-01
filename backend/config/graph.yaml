@@ -1,0 +1,30 @@
+# Configuração do grafo (PRD 7.6 e 7.7). Limiares alteram o resultado da
+# comparação: mudança só por commit `config:` e revisão humana (CLAUDE.md).
+config_version: "1"
+
+mode: replay # replay | live; a variável PROVIDER_MODE sobrescreve
+primary: jev # jev | llm
+llm_model: "openai:gpt-5.6-luna"
+
+providers: # por node de decisão: llm | jev | both
+  guardrail: both
+  triage: both
+  verify: both
+
+llm_model_overrides: {} # por node, opcional: { triage: "openai:gpt-6-sol" }
+
+thresholds:
+  guardrail_block: 0.70
+  triage_min_confidence: 0.80
+  verify_min_policy: 0.80
+  verify_max_overpromise: 0.30
+
+catalog:
+  - { label: "GPT-6 Sol", provider: openai, model_id: gpt-6-sol }
+  - { label: "GPT-6 Luna", provider: openai, model_id: gpt-6-luna }
+  - { label: "GPT-5.6 Sol", provider: openai, model_id: gpt-5.6-sol }
+  - { label: "GPT-5.6 Terra", provider: openai, model_id: gpt-5.6-terra }
+  - { label: "GPT-5.6 Luna", provider: openai, model_id: gpt-5.6-luna }
+  - { label: "Claude Opus 5.5", provider: anthropic, model_id: claude-opus-5-5 }
+  - { label: "Claude Sonnet 5.5", provider: anthropic, model_id: claude-sonnet-5-5 }
+  - { label: "Claude Haiku 4.5", provider: anthropic, model_id: claude-haiku-4-5-20251001 }

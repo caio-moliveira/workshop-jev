@@ -41,8 +41,15 @@ jobs:
       - run: npm run test
 
   # Contrato do projeto: o grafo roda em replay sem nenhuma chave.
-  # Placeholder até a SPEC-02 entregar `python -m app.cli run --limit 3`.
   replay:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "replay de três tickets entra com a SPEC-02"
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: replay de três tickets
+        working-directory: backend
+        env:
+          PROVIDER_MODE: replay
+        run: |
+          uv sync --frozen
+          uv run python -m app.cli run --limit 3
