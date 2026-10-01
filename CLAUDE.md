@@ -17,6 +17,7 @@ cd frontend && npm install && npm run dev                          # http://loca
 
 ```
 cd backend && uv run pytest
+cd backend && PROVIDER_MODE=replay uv run python -m app.cli run --limit 3   # contrato: sem chaves
 pre-commit run --all-files                                         # da raiz: ruff, gitleaks, higiene
 cd frontend && npm run lint && npm run typecheck && npm run build && npm run test
 ```
@@ -25,7 +26,7 @@ Toda SPEC concluída tem teste; PR sem teste não entra.
 
 ## Convenções
 
-- Conventional Commits, validados pelo commitlint: `tipo(escopo): descrição`. Tipos e escopos em `commitlint.config.cjs`.
+- Conventional Commits, validados pelo commitlint: `tipo(escopo): descrição`, descrição começando em minúscula. Tipos e escopos em `commitlint.config.cjs`.
 - Uma branch por SPEC (`feat/spec-01-...`), squash merge, título do PR cita a SPEC.
 - Nunca commit direto em `main`, nunca `git push --force`, nunca mover tags.
 - Antes de codar uma SPEC, carregue as skills da tabela em `docs/specs/README.md`. Onde uma skill contradiz o PRD, o PRD vence (Python 3.12, React 18).

@@ -1,4 +1,4 @@
-Status: rascunho
+Status: aceita
 
 # SPEC-02: Grafo
 
@@ -48,8 +48,15 @@ class Event(BaseModel):
 
 EventSink = Callable[[Event], Awaitable[None]]
 
-def build_graph(config: GraphConfig) -> CompiledStateGraph: ...
-async def run_ticket(ticket: Ticket, config: GraphConfig, emit: EventSink | None = None) -> RunResult: ...
+@dataclass
+class Providers:                              # jev, llm, reply e llm_by_node (overrides)
+    ...
+
+def build_providers(config: GraphConfig, simulate_latency: bool = True) -> Providers: ...
+async def run_ticket(
+    ticket: Ticket, config: GraphConfig, emit: EventSink | None = None,
+    providers: Providers | None = None, policy: str | None = None, simulate_latency: bool = True,
+) -> RunResult: ...
 
 class RunResult(BaseModel):
     run_id: str
@@ -82,6 +89,8 @@ class RunResult(BaseModel):
 
 - Resultado primário com `parse_ok=False` ou `values_in_schema=False`, ou exceção no provider primário: a execução vai para `human` e o motivo entra em `errors`. Falha do provider não primário só é registrada.
 - `mode: replay` resolve `jev` e `llm` para `ReplayProvider(source=...)`. `mode: live` resolve para `JevProvider` e `LLMProvider`.
+- O estado guarda do ticket só `id`, `text` e `channel`: os rótulos do golden set nunca chegam aos providers. O payload é o mesmo para os dois providers e leva `ticket_id` no topo, para o replay.
+- `reply` fica em `app/providers/reply.py` (`LLMReplyWriter`, `ReplayReplyWriter`); sua métrica entra em `metrics` como um `ProviderResult` sem respostas, com o texto em `raw`.
 
 ### `backend/app/cli.py`
 
@@ -91,23 +100,25 @@ uv run python -m app.cli run --ticket tk-0042
 uv run python -m app.cli record --limit 330           # mode live obrigatório; grava fixtures/replay/
 ```
 
-`record` roda cada ticket com os nodes em `both` e escreve os arquivos de `jev/` e `llm/` no formato da SPEC-06. Sai com código diferente de zero se faltar chave.
+`record` roda cada ticket com os nodes em `both` e escreve os arquivos de `jev/` e `llm/` no formato da SPEC-06. Sai com código diferente de zero se faltar chave. O fluxo gravado segue o primário: se o Jev bloquear um ticket que o LLM deixaria passar, o replay com `primary: llm` não tem o `triage` desse ticket e vai para `human` com o erro registrado.
+
+Em replay, `run` só considera os tickets que têm gravação; `--ticket` sem gravação sai com erro. `run` sai com código diferente de zero se alguma execução registrou erro. A saída força UTF-8 (o console do Windows usa cp1252).
 
 ## Critérios de aceite
 
 Testes com providers falsos, sem rede.
 
-- [ ] Ticket com `injection` ≥ 0,70: `action="blocked"`, `path == ["guardrail"]`, `triage` e `reply` não rodam.
-- [ ] `fila.confidence` 0,60: `action="human"`, `reply` não roda.
-- [ ] Caminho feliz: `path == ["guardrail", "triage", "reply", "verify", "act"]`, `action="auto"`.
-- [ ] `promete_fora` 0,40: `action="human"`.
-- [ ] Em `both`, com os dois providers discordando da fila, o caminho segue o primário e `metrics` tem os dois resultados do node.
-- [ ] Trocar `primary` de `jev` para `llm` muda o caminho no mesmo cenário.
-- [ ] Mudar um limiar em `GraphConfig` muda a decisão sem tocar no código.
-- [ ] Primário com `parse_ok=False`: `action="human"` e `errors` não vazio.
-- [ ] `emit` recebe os eventos na ordem `run.started`, depois por node `node.started`, um `provider.finished` por provider, `node.finished`, e por fim `run.finished`.
-- [ ] `PROVIDER_MODE=replay uv run python -m app.cli run --limit 3` termina com código 0 sem nenhuma chave no ambiente. Este comando substitui o placeholder do job `replay` da CI.
-- [ ] Fixtures reais dos 330 tickets gravadas com `record` e commitadas (`data(data): fixtures de replay`); as três escritas à mão na SPEC-06 são substituídas.
+- [x] Ticket com `injection` ≥ 0,70: `action="blocked"`, `path == ["guardrail"]`, `triage` e `reply` não rodam.
+- [x] `fila.confidence` 0,60: `action="human"`, `reply` não roda.
+- [x] Caminho feliz: `path == ["guardrail", "triage", "reply", "verify", "act"]`, `action="auto"`.
+- [x] `promete_fora` 0,40: `action="human"`.
+- [x] Em `both`, com os dois providers discordando da fila, o caminho segue o primário e `metrics` tem os dois resultados do node.
+- [x] Trocar `primary` de `jev` para `llm` muda o caminho no mesmo cenário.
+- [x] Mudar um limiar em `GraphConfig` muda a decisão sem tocar no código.
+- [x] Primário com `parse_ok=False`: `action="human"` e `errors` não vazio.
+- [x] `emit` recebe os eventos na ordem `run.started`, depois por node `node.started`, um `provider.finished` por provider, `node.finished`, e por fim `run.finished`.
+- [x] `PROVIDER_MODE=replay uv run python -m app.cli run --limit 3` termina com código 0 sem nenhuma chave no ambiente. Este comando substitui o placeholder do job `replay` da CI.
+- [ ] **Pendente, precisa das chaves do apresentador:** fixtures reais dos 330 tickets gravadas com `record` e commitadas (`data(data): fixtures de replay`); as três escritas à mão na SPEC-06 são substituídas.
 
 ## Fora
 
