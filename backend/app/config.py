@@ -36,6 +36,7 @@ class GraphConfig(BaseModel):
     llm_model_overrides: dict[DecisionNode, str] = {}
     thresholds: Thresholds
     catalog: list[CatalogModel] = []
+    batch_concurrency: int = Field(default=5, ge=1, le=20)
 
     def providers_for(self, node: str) -> list[ProviderName]:
         mode = self.providers[node]

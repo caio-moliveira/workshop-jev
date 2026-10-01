@@ -1,4 +1,4 @@
-import type { GraphConfig, Pricing, RunResult, Ticket } from './types'
+import type { BatchEstimate, BatchReport, GraphConfig, Pricing, RunResult, Ticket } from './types'
 
 export const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 
@@ -48,3 +48,21 @@ export const postRun = (body: { ticket_id: string } | { text: string }) =>
   })
 
 export const getRun = (runId: string) => request<RunResult>(`/runs/${runId}`)
+
+const batchQuery = (n: number, tag?: string) =>
+  new URLSearchParams({ n: String(n), ...(tag ? { tag } : {}) })
+
+export const getBatchEstimate = (n: number, tag?: string) =>
+  request<BatchEstimate>(`/batches/estimate?${batchQuery(n, tag)}`)
+
+export const postBatch = (n: number, tag?: string) =>
+  request<BatchEstimate & { batch_id: string }>('/batches', {
+    method: 'POST',
+    body: JSON.stringify({ n, tag: tag || null }),
+  })
+
+export const getBatchReport = (batchId: string) =>
+  request<BatchReport>(`/batches/${batchId}/report`)
+
+export const exportUrl = (batchId: string, format: 'csv' | 'json') =>
+  `${API_URL}/batches/${batchId}/export?format=${format}`
