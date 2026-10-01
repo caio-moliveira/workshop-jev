@@ -17,7 +17,7 @@ cd frontend && npm install && npm run dev                          # http://loca
 
 ```
 cd backend && uv run pytest
-uvx ruff check . && uvx ruff format --check .                      # da raiz
+pre-commit run --all-files                                         # da raiz: ruff, gitleaks, higiene
 cd frontend && npm run lint && npm run typecheck && npm run build && npm run test
 ```
 

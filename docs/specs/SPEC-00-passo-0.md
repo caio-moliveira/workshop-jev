@@ -56,7 +56,7 @@ Comandos que passam a valer (e vão para o `CLAUDE.md`):
 | Backend, instalar | `cd backend && uv sync` |
 | Backend, rodar | `cd backend && uv run uvicorn app.main:app --reload` |
 | Backend, testar | `cd backend && uv run pytest` |
-| Lint Python | `uvx ruff check . && uvx ruff format --check .` (da raiz) |
+| Lint e higiene | `pre-commit run --all-files` (da raiz; a versão do ruff é a fixada em `.pre-commit-config.yaml` e no `ci.yml`) |
 | Frontend, instalar | `cd frontend && npm install` |
 | Frontend, rodar | `cd frontend && npm run dev` |
 | Frontend, checar | `cd frontend && npm run lint && npm run typecheck && npm run build` |
@@ -76,7 +76,7 @@ Jobs do `ci.yml`, disparados por pull request:
 - [x] `cd frontend && npm install && npm run build` passa; `npm run dev` abre uma página.
 - [x] `prettier` e `prettier-plugin-tailwindcss` em `devDependencies`; `npm run format` ordena as classes do Tailwind.
 - [x] `.claude/settings.json` mantém `enabledPlugins` e `extraKnownMarketplaces` ao receber as permissões.
-- [x] `uvx pre-commit run --all-files` passa na árvore inteira.
+- [x] `pre-commit run --all-files` passa na árvore inteira.
 - [x] `.env` não está rastreado; `.env.example` só tem as quatro variáveis, vazias (exceto `PROVIDER_MODE=replay`).
 - [x] `CLAUDE.md` tem as oito seções do PRD 13.4 e cabe em uma tela e meia.
 - [ ] CI verde num PR.
