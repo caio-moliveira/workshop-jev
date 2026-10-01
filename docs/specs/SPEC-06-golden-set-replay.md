@@ -1,4 +1,4 @@
-Status: rascunho
+Status: concluída
 
 # SPEC-06: Golden set e replay
 
@@ -22,19 +22,20 @@ Uma decisão desta SPEC sobre o PRD: o `ReplayProvider` devolve o `ProviderResul
 
 - `data/golden_set.json`: lista de tickets no formato do PRD 9.3. 300 tickets de triagem (`tk-0001` a `tk-0300`) e 30 adversariais (`adv-001` a `adv-030`).
 - `data/policy.md`: política de reembolso, curta (até uma página), usada no payload de `triage` e `verify`.
-- `data/scripts/generate_golden_set.py`: gera os tickets por LLM a partir da taxonomia de 25 situações. Roda à mão, com chave. O resultado é revisado por uma pessoa antes do commit.
+- `data/scripts/generate_golden_set.py`: gera o golden set em três etapas. `plan` sorteia, com semente fixa, os rótulos de cada ticket a partir da taxonomia de 25 situações (12 tickets por situação) e dos 3 riscos adversariais (10 cada); `write` pede a um LLM só o texto de cada ticket, coerente com os rótulos já fixados; `build` junta os dois em `golden_set.json`. Rótulo vem antes do texto, nunca é inferido dele. Os arquivos intermediários (`plan.json`, `texts.json`) ficam fora do git. O resultado é revisado por uma pessoa antes do commit.
 - `backend/app/dataset.py`:
 
 ```python
 class Ticket(BaseModel):
     id: str
     text: str
+    channel: Literal["email", "chat", "formulario"]
     labels: TicketLabels          # fila, urgencia, pede_reembolso, risco_churn
     guardrail: GuardrailLabels    # injection, dado_sensivel, fora_escopo
     tags: list[str]
     difficulty: Literal["easy", "medium", "hard"]
 
-def load_golden_set(tag: str | None = None, limit: int | None = None) -> list[Ticket]: ...
+def load_golden_set(tag: str | None = None, limit: int | None = None, path: Path = GOLDEN_SET_PATH) -> list[Ticket]: ...
 def load_policy() -> str: ...
 ```
 
@@ -63,7 +64,7 @@ Um arquivo por ticket e por provider: `fixtures/replay/<jev|llm>/<ticket_id>.jso
 
 ```python
 class ReplayProvider:
-    def __init__(self, source: Literal["jev", "llm"], simulate_latency: bool = True): ...
+    def __init__(self, source: Literal["jev", "llm"], simulate_latency: bool = True, fixtures_dir: Path = FIXTURES_DIR): ...
     async def decide(self, node: NodeSpec, payload: dict) -> ProviderResult: ...
 
 class ReplayMissError(Exception): ...   # ticket ou node sem fixture
@@ -73,13 +74,13 @@ class ReplayMissError(Exception): ...   # ticket ou node sem fixture
 
 ## Critérios de aceite
 
-- [ ] Teste valida o golden set: 330 itens, ids únicos, todo item passa no modelo `Ticket`, `fila` dentro das quatro opções, `urgencia` em 0..2.
-- [ ] Teste de distribuição: cada fila tem pelo menos 40 tickets; cada nível de urgência pelo menos 60; os 30 adversariais cobrem os três riscos do guardrail (pelo menos 8 de cada).
-- [ ] `load_golden_set(tag=..., limit=...)` filtra e limita; teste cobre os dois.
-- [ ] `ReplayProvider.decide` devolve um `ProviderResult` igual ao gravado; levanta `ReplayMissError` com mensagem que cita ticket e node quando não há fixture.
-- [ ] Com `simulate_latency=True`, a chamada demora pelo menos a latência gravada (teste com fixture de 50 ms).
-- [ ] Existem fixtures de `jev/` e `llm/` para pelo menos três tickets (`tk-0001`, `tk-0002` e um adversarial), suficientes para o job de CI.
-- [ ] Nenhum teste desta SPEC precisa de chave ou de rede.
+- [x] Teste valida o golden set: 330 itens, ids únicos, todo item passa no modelo `Ticket`, `fila` dentro das quatro opções, `urgencia` em 0..2.
+- [x] Teste de distribuição: cada fila tem pelo menos 40 tickets; cada nível de urgência pelo menos 60; os 30 adversariais cobrem os três riscos do guardrail (pelo menos 8 de cada).
+- [x] `load_golden_set(tag=..., limit=...)` filtra e limita; teste cobre os dois.
+- [x] `ReplayProvider.decide` devolve um `ProviderResult` igual ao gravado; levanta `ReplayMissError` com mensagem que cita ticket e node quando não há fixture.
+- [x] Com `simulate_latency=True`, a chamada demora pelo menos a latência gravada (teste com fixture de 50 ms).
+- [x] Existem fixtures de `jev/` e `llm/` para pelo menos três tickets (`tk-0001`, `tk-0002` e um adversarial), suficientes para o job de CI.
+- [x] Nenhum teste desta SPEC precisa de chave ou de rede.
 
 ## Fora
 
