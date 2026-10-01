@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída
 
 # SPEC-00: Passo 0, repositório e harness
 
@@ -79,10 +79,10 @@ Jobs do `ci.yml`, disparados por pull request:
 - [x] `pre-commit run --all-files` passa na árvore inteira.
 - [x] `.env` não está rastreado; `.env.example` só tem as quatro variáveis, vazias (exceto `PROVIDER_MODE=replay`).
 - [x] `CLAUDE.md` tem as oito seções do PRD 13.4 e cabe em uma tela e meia.
-- [ ] CI verde num PR.
-- [ ] Commit final: `chore: passo 0, repositório e harness`.
+- [x] CI verde num PR (#1).
+- [x] Commit final: `chore: passo 0, repositório e harness` (título do squash).
 
-Manual, no GitHub (não verificável por teste): `main` protegida, squash merge como padrão, secret scanning ligado.
+Configurado no GitHub (não verificável por teste): `main` protegida (PR obrigatório, os três jobs da CI obrigatórios, sem force push), squash merge como único método, secret scanning com push protection.
 
 ## Fora
 
