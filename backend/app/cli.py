@@ -16,7 +16,7 @@ import sys
 from app.config import GraphConfig, load_config
 from app.dataset import Ticket, load_golden_set
 from app.graph import RunResult, run_ticket
-from app.providers.replay import FIXTURES_DIR
+from app.providers.replay import FIXTURES_DIR, has_fixture
 
 DECISION_NODES = ("guardrail", "triage", "verify")
 KEYS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -44,10 +44,6 @@ def main(argv: list[str] | None = None) -> int:
     return asyncio.run(record_command(config, args.limit, args.concurrency))
 
 
-def has_fixture(ticket: Ticket) -> bool:
-    return all((FIXTURES_DIR / s / f"{ticket.id}.json").exists() for s in ("jev", "llm"))
-
-
 async def run_command(
     config: GraphConfig, ticket_id: str | None, limit: int | None, latency: bool
 ) -> int:
@@ -55,11 +51,11 @@ async def run_command(
     if ticket_id:
         tickets = [t for t in tickets if t.id == ticket_id]
     if config.mode == "replay":
-        missing = [t.id for t in tickets if not has_fixture(t)]
+        missing = [t.id for t in tickets if not has_fixture(t.id)]
         if ticket_id and missing:
             print(f"sem gravação de replay para {ticket_id}", file=sys.stderr)
             return 1
-        tickets = [t for t in tickets if has_fixture(t)]
+        tickets = [t for t in tickets if has_fixture(t.id)]
     tickets = tickets[:limit]
     if not tickets:
         print("nenhum ticket para executar", file=sys.stderr)

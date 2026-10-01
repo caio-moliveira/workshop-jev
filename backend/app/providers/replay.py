@@ -40,5 +40,10 @@ class ReplayProvider:
         return result
 
 
+def has_fixture(ticket_id: str, fixtures_dir: Path = FIXTURES_DIR) -> bool:
+    """Há gravação dos dois providers para o ticket."""
+    return all((fixtures_dir / s / f"{ticket_id}.json").exists() for s in ("jev", "llm"))
+
+
 def load_fixture(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))

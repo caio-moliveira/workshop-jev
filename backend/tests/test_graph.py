@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from app.config import GraphConfig, load_config
@@ -298,3 +300,25 @@ async def test_replay_das_fixtures_versionadas(ticket_id, action, path):
     assert outcome.mode == "replay"
     assert (outcome.action, outcome.path) == (action, path)
     assert outcome.errors == []
+
+
+class SlowProvider(FakeProvider):
+    async def decide(self, node: NodeSpec, payload: dict) -> ProviderResult:
+        await asyncio.sleep(0.05)
+        return await super().decide(node, payload)
+
+
+async def test_cada_provider_e_emitido_quando_termina():
+    events: list[Event] = []
+
+    async def emit(event: Event):
+        events.append(event)
+
+    await run(prov=providers(jev=SlowProvider("jev")), emit=emit)
+
+    guardrail = [
+        e.data["provider"]
+        for e in events
+        if e.type == "provider.finished" and e.node == "guardrail"
+    ]
+    assert guardrail == ["llm", "jev"]
