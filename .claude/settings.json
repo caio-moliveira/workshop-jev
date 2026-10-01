@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv:*)",
+      "Bash(uvx:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pytest:*)",
+      "Bash(ruff:*)",
+      "Bash(pre-commit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git branch:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git tag -f:*)",
+      "Bash(git tag -d:*)",
+      "Read(./.env)",
+      "Read(./backend/.env)"
+    ]
+  },
+  "enabledPlugins": {
+    "python-master@claude-plugin-marketplace": true,
+    "react-master@claude-plugin-marketplace": true,
+    "tailwindcss-master@claude-plugin-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugin-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "josiahsiegel/claude-plugin-marketplace"
+      }
+    }
+  }
+}

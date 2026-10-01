@@ -1,0 +1,7 @@
+# Regras padrão do gitleaks, menos as skills de terceiros: os exemplos de
+# documentação lá dentro (`API_KEY=<your-key>`) são falso positivo.
+[extend]
+useDefault = true
+
+[allowlist]
+paths = ['''^\.claude/skills/''']
