@@ -16,7 +16,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from app.config import GraphConfig
-from app.dataset import Ticket, load_policy
+from app.dataset import TicketInput, load_policy
 from app.metrics.pricing import load_pricing
 from app.providers.base import DecisionProvider, NodeSpec, ProviderResult
 from app.providers.jev import JevProvider
@@ -141,31 +141,37 @@ def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
             names = config.providers_for(spec.name)
             primary = config.primary_for(spec.name)
             data = payload(state, spec)
-            outcomes = await asyncio.gather(
-                *(providers.get(name, spec.name).decide(spec, data) for name in names),
-                return_exceptions=True,
-            )
 
-            metrics, errors, answers = [], [], None
-            for name, outcome in zip(names, outcomes, strict=True):
+            async def call(name: str) -> NodeMetric | Exception:
+                # Cada provider é emitido ao terminar: o Jev aparece antes do LLM na tela.
                 is_primary = name == primary
-                where = f"{spec.name}/{name}"
-                if isinstance(outcome, BaseException):
-                    errors.append(f"{where}: {type(outcome).__name__}: {outcome}")
+                try:
+                    outcome = await providers.get(name, spec.name).decide(spec, data)
+                except Exception as error:
                     await emit(
                         "provider.finished",
                         spec.name,
-                        {"provider": name, "is_primary": is_primary, "error": str(outcome)},
+                        {"provider": name, "is_primary": is_primary, "error": str(error)},
                     )
-                    continue
+                    return error
                 metric = NodeMetric(**outcome.model_dump(), node=spec.name, is_primary=is_primary)
-                metrics.append(metric)
                 await emit("provider.finished", spec.name, metric.model_dump(mode="json"))
+                return metric
+
+            outcomes = await asyncio.gather(*(call(name) for name in names))
+
+            metrics, errors, answers = [], [], None
+            for name, outcome in zip(names, outcomes, strict=True):
+                where = f"{spec.name}/{name}"
+                if isinstance(outcome, Exception):
+                    errors.append(f"{where}: {type(outcome).__name__}: {outcome}")
+                    continue
+                metrics.append(outcome)
                 if not outcome.parse_ok:
                     errors.append(f"{where}: resposta fora do schema (parse_ok=False)")
                 elif not outcome.values_in_schema:
                     errors.append(f"{where}: valor fora das opções (values_in_schema=False)")
-                elif is_primary:
+                elif outcome.is_primary:
                     answers = {q: a.model_dump() for q, a in outcome.answers.items()}
 
             update = {spec.name: answers, "metrics": metrics, "path": [spec.name], "errors": errors}
@@ -253,15 +259,20 @@ def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
     )
 
 
+def new_run_id() -> str:
+    return uuid.uuid4().hex[:12]
+
+
 async def run_ticket(
-    ticket: Ticket,
+    ticket: TicketInput,
     config: GraphConfig,
     emit: EventSink | None = None,
     providers: Providers | None = None,
     policy: str | None = None,
     simulate_latency: bool = True,
+    run_id: str | None = None,
 ) -> RunResult:
-    run_id = uuid.uuid4().hex[:12]
+    run_id = run_id or new_run_id()
     providers = providers or build_providers(config, simulate_latency)
 
     async def send(type: str, node: str | None = None, data: dict | None = None) -> None:

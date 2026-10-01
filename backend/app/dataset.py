@@ -24,10 +24,17 @@ class GuardrailLabels(BaseModel):
     fora_escopo: bool
 
 
-class Ticket(BaseModel):
+class TicketInput(BaseModel):
+    """O que o grafo vê de um ticket. Ticket digitado na interface só tem isto."""
+
     id: str
     text: str
-    channel: Literal["email", "chat", "formulario"]
+    channel: Literal["email", "chat", "formulario"] = "formulario"
+
+
+class Ticket(TicketInput):
+    """Ticket do golden set, com os rótulos que servem de gabarito."""
+
     labels: TicketLabels
     guardrail: GuardrailLabels
     tags: list[str]
