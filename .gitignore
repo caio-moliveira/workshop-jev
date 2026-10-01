@@ -14,3 +14,7 @@ dist/
 
 # Resultados de execução
 runs/
+
+# Intermediários do gerador do golden set
+data/scripts/plan.json
+data/scripts/texts.json

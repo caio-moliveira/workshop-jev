@@ -1,0 +1,109 @@
+{
+  "ticket_id": "tk-0001",
+  "config_version": "1",
+  "nodes": {
+    "guardrail": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "injection": {
+          "value": 0.0,
+          "confidence": 0.98,
+          "probabilities": null
+        },
+        "dado_sensivel": {
+          "value": 0.0,
+          "confidence": 0.97,
+          "probabilities": null
+        },
+        "fora_escopo": {
+          "value": 0.05,
+          "confidence": 0.95,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1180.0,
+      "tokens_in": 402,
+      "tokens_out": 61,
+      "cost_usd": 0.0001536,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "fila": {
+          "value": "financeiro",
+          "confidence": 0.95,
+          "probabilities": null
+        },
+        "urgencia": {
+          "value": 1,
+          "confidence": 0.8,
+          "probabilities": null
+        },
+        "pede_reembolso": {
+          "value": 1.0,
+          "confidence": 0.95,
+          "probabilities": null
+        },
+        "risco_churn": {
+          "value": 0.1,
+          "confidence": 0.85,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1530.0,
+      "tokens_in": 1190,
+      "tokens_out": 88,
+      "cost_usd": 0.0003436,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "verify": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "segue_politica": {
+          "value": 0.95,
+          "confidence": 0.9,
+          "probabilities": null
+        },
+        "responde_pedido": {
+          "value": 0.95,
+          "confidence": 0.9,
+          "probabilities": null
+        },
+        "promete_fora": {
+          "value": 0.05,
+          "confidence": 0.9,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1410.0,
+      "tokens_in": 1460,
+      "tokens_out": 72,
+      "cost_usd": 0.0003784,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    }
+  },
+  "reply": {
+    "text": "Olá! Sentimos muito pela cobrança errada da sua mensalidade Jornada+. Como o pedido foi feito dentro de 7 dias após a cobrança, você tem direito ao reembolso integral da mensalidade. Já registramos a solicitação: o estorno é pedido em até 5 dias úteis e aparece em até duas faturas do cartão. Qualquer dúvida, é só responder esta mensagem.",
+    "model": "gpt-5.6-luna",
+    "latency_ms": 3920.0,
+    "tokens_in": 1310,
+    "tokens_out": 142,
+    "cost_usd": 0.0004324
+  }
+}
