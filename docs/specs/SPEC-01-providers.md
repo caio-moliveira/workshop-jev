@@ -1,4 +1,4 @@
-Status: rascunho
+Status: concluída
 
 # SPEC-01: Providers
 
@@ -43,7 +43,7 @@ models:               # US$ por 1M tokens
   # ... os nove modelos do PRD 7.7
 ```
 
-Modelo sem preço em `pricing.yaml` é erro explícito, não custo zero.
+Modelo sem preço em `pricing.yaml` é erro explícito (`PricingMissingError`), não custo zero. Os modelos da Anthropic entram com `input: null, output: null` até alguém preencher na véspera (PRD 7.7): a chave existe para o catálogo, mas rodar com eles falha até haver preço.
 
 ### `backend/app/providers/jev.py`
 
@@ -91,15 +91,15 @@ def build_schema(node: NodeSpec) -> type[BaseModel]: ...
 
 Todos os testes usam cliente falso injetado pelo construtor; nenhum precisa de chave ou rede.
 
-- [ ] Para cada `NodeSpec`, o corpo enviado ao Jev contém exatamente as perguntas do spec, com os mesmos `instructions` e `criteria`.
-- [ ] Para cada `NodeSpec`, o prompt do LLM contém o texto de todas as `instructions` e de todos os critérios do spec (teste de que os dois providers saem da mesma fonte).
-- [ ] `JevProvider` mapeia choice, score e noul conforme a tabela, a partir de uma resposta falsa do SDK.
-- [ ] `LLMProvider` com resposta válida: `parse_ok=True`, tokens lidos de `usage_metadata`.
-- [ ] `LLMProvider` com JSON inválido: `parse_ok=False`, sem exceção.
-- [ ] `LLMProvider` com fila inventada (`"suporte"`): `parse_ok=True`, `values_in_schema=False`.
-- [ ] `cost_usd("gpt-5.6-luna", 1_000_000, 1_000_000, pricing) == 1.40`; modelo desconhecido levanta erro.
-- [ ] `pricing.yaml` tem `reference_date`, `source` e os nove modelos do PRD 7.7.
-- [ ] Teste marcado `@pytest.mark.live` (fora da CI) chama Jev e um LLM de verdade com um ticket, para o apresentador validar as chaves.
+- [x] Para cada `NodeSpec`, o corpo enviado ao Jev contém exatamente as perguntas do spec, com os mesmos `instructions` e `criteria`.
+- [x] Para cada `NodeSpec`, o prompt do LLM contém o texto de todas as `instructions` e de todos os critérios do spec (teste de que os dois providers saem da mesma fonte).
+- [x] `JevProvider` mapeia choice, score e noul conforme a tabela, a partir de uma resposta falsa do SDK.
+- [x] `LLMProvider` com resposta válida: `parse_ok=True`, tokens lidos de `usage_metadata`.
+- [x] `LLMProvider` com JSON inválido: `parse_ok=False`, sem exceção.
+- [x] `LLMProvider` com fila inventada (`"suporte"`): `parse_ok=True`, `values_in_schema=False`.
+- [x] `cost_usd("gpt-5.6-luna", 1_000_000, 1_000_000, pricing) == 1.40`; modelo desconhecido levanta erro.
+- [x] `pricing.yaml` tem `reference_date`, `source` e os nove modelos do PRD 7.7.
+- [x] Teste marcado `@pytest.mark.live` (fora da CI) chama Jev e um LLM de verdade com um ticket, para o apresentador validar as chaves: `cd backend && uv run --env-file ../.env pytest -m live`.
 
 ## Fora
 
