@@ -1,0 +1,57 @@
+# Portão local. O CI é o portão remoto.
+#
+#   uv tool install pre-commit
+#   pre-commit install
+#
+# `pre-commit install` já instala os dois hooks (pre-commit e commit-msg) por
+# causa do `default_install_hook_types` abaixo. O commitlint precisa de Node
+# (npx) no PATH.
+#
+# `.claude/skills/` fica de fora: são skills de terceiros, copiadas como vieram.
+# Hook que arruma espaço em branco lá dentro só gera diff contra a origem.
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+exclude: '^\.claude/skills/'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        # tsconfig é JSON com comentários
+        exclude: 'tsconfig.*\.json$'
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.29.0
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      # Conventional Commits (PRD 13.1). Regras em commitlint.config.cjs.
+      - id: commitlint
+        name: commitlint (conventional commits)
+        entry: npx --yes --package @commitlint/cli --package @commitlint/config-conventional commitlint --edit
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false
+
+# Testes não rodam aqui: `pytest`, `eslint`, `tsc` e o replay de três tickets
+# são do CI (PRD 13.2), que entra com a SPEC-00.

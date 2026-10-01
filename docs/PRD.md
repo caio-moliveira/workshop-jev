@@ -1,7 +1,7 @@
 # PRD: JEV Jornada
 
 Workshop Jornada de Dados, sábado 3 de outubro de 2026
-Versão 0.3, 1 de outubro de 2026
+Versão 0.4, 1 de outubro de 2026
 Status: rascunho para revisão
 
 ---
@@ -394,7 +394,85 @@ jev-jornada/
 
 ---
 
-## 13. Riscos
+## 13. Passo 0: repositório, harness do agente e CLAUDE.md
+
+Antes de quebrar o projeto em SPECs e implementar qualquer coisa, o repositório precisa existir com as regras de trabalho prontas. Este passo é feito uma vez, à mão, e é o que permite que o agente de código (Claude Code) e as pessoas trabalhem no mesmo padrão. Entrega: um commit `chore: passo 0, repositório e harness` em `main`, com tudo abaixo.
+
+### 13.1 Padrão de Git
+
+| Tema | Regra |
+|---|---|
+| Branching | Trunk-based. `main` sempre executável, protegida. Todo trabalho em branch curta (`feat/`, `fix/`, `chore/`, `docs/`, `data/`) que volta por pull request com squash merge |
+| Commits | Conventional Commits: `tipo(escopo): descrição`. Escopos: `backend`, `frontend`, `graph`, `providers`, `data`, `config`, `docs` |
+| Pull request | Template com quatro perguntas: o que muda, como testar, afeta o modo replay?, afeta métricas ou preços? |
+| Tags | `step-0` a `step-5` marcando os estados do workshop, criadas após o ensaio e nunca movidas. Versão completa: `v1.0.0` |
+| Segredos | `.env` no `.gitignore` desde o primeiro commit; `.env.example` com as variáveis vazias; `pre-commit` com `gitleaks`; secret scanning do GitHub ligado. Chave vazada é revogada, não reescrita |
+| Versionado | `data/golden_set.json`, `fixtures/replay/`, `config/*.yaml`, `docs/specs/`, `CLAUDE.md` |
+| Ignorado | `runs/`, `.venv/`, `node_modules/`, `__pycache__/`, `.env` |
+| Dependências | Versões fixas em `pyproject.toml` e `package.json` (`typesafe-sdk`, `langgraph`, `langchain`, `@xyflow/react`) |
+| Versão de configuração | `graph.yaml` carrega um campo `config_version`; cada resultado exportado grava essa versão para que lotes de dias diferentes sejam comparáveis |
+
+### 13.2 CI mínima
+
+Um workflow do GitHub Actions por pull request: `ruff` e `pytest` no backend; `eslint`, `tsc --noEmit` e `vite build` no frontend; e um job que executa o grafo em modo replay com três tickets do golden set. Esse último job é o contrato do projeto: tem que funcionar sem nenhuma chave.
+
+### 13.3 Harness do agente
+
+O harness é o conjunto de arquivos que dá contexto e limites ao Claude Code para trabalhar no repositório sem supervisão linha a linha.
+
+```
+jev-jornada/
+├── CLAUDE.md                    # instruções do agente (abaixo)
+├── docs/
+│   ├── PRD.md                   # este documento
+│   └── specs/
+│       ├── README.md            # como uma SPEC é escrita e aceita
+│       ├── SPEC-00-passo-0.md
+│       ├── SPEC-01-providers.md
+│       ├── SPEC-02-graph.md
+│       ├── SPEC-03-api-sse.md
+│       ├── SPEC-04-frontend-config-playground.md
+│       ├── SPEC-05-batch-dashboard.md
+│       └── SPEC-06-golden-set-replay.md
+├── .claude/
+│   └── settings.json            # comandos permitidos (uv, npm, pytest, ruff, git sem push forçado)
+├── .github/
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── workflows/ci.yml
+├── .pre-commit-config.yaml
+├── .env.example
+└── .gitignore
+```
+
+Cada SPEC tem o mesmo formato: objetivo em uma frase, seções do PRD que cobre, interfaces que expõe (assinaturas, rotas, schemas), critérios de aceite verificáveis por teste, e o que fica fora. Uma SPEC vira uma ou mais branches; um PR referencia a SPEC no título. O agente só implementa a partir de uma SPEC aceita, nunca a partir do PRD direto.
+
+### 13.4 Conteúdo do CLAUDE.md
+
+Curto, factual, atualizado a cada SPEC concluída. Seções:
+
+1. **O que é o projeto**, em três linhas, com link para `docs/PRD.md` e `docs/specs/`.
+2. **Como rodar**: `uv sync`, `uv run uvicorn app.main:app --reload`, `npm install`, `npm run dev`, `PROVIDER_MODE=replay` como padrão de desenvolvimento. Rodar com chaves reais só quando a tarefa pedir.
+3. **Como testar**: `uv run pytest`, `npm run test`, e o comando do replay de três tickets. Toda SPEC concluída tem teste; PR sem teste não entra.
+4. **Convenções**: Conventional Commits, branch por SPEC, squash merge, nunca commit em `main`, nunca `git push --force`, nunca mover tags.
+5. **Regras do domínio**: o mesmo `NodeSpec` alimenta os dois providers (não criar prompts separados por provider); em modo `both` só o primário segue no fluxo; `reply` é só LLM; preços vêm de `pricing.yaml`, nunca hardcoded; tokens e latência vêm da resposta e do relógio monotônico, nunca estimados.
+6. **O que não tocar sem pedir**: `data/golden_set.json`, `fixtures/replay/`, `config/pricing.yaml`, limiares em `graph.yaml`. Mudanças nesses arquivos alteram o resultado da comparação e precisam de commit `data:` ou `config:` explícito e revisão humana.
+7. **Segredos**: nunca ler, imprimir ou commitar valores do `.env`; se encontrar uma chave em código, parar e avisar.
+8. **Definição de pronto**: lint limpo, testes passando, CI verde, modo replay funcionando, `CLAUDE.md` e a SPEC atualizados se as interfaces mudaram.
+
+### 13.5 Checklist de saída do passo 0
+
+- [ ] Repositório `jev-jornada` criado, `main` protegida, squash merge como padrão
+- [ ] `.gitignore`, `.env.example`, `pre-commit` com `gitleaks`, secret scanning ligado
+- [ ] `PULL_REQUEST_TEMPLATE.md` e `ci.yml` commitados e CI verde num PR vazio
+- [ ] `CLAUDE.md` escrito e `.claude/settings.json` com os comandos permitidos
+- [ ] `docs/PRD.md` e `docs/specs/README.md` no repositório; as seis SPECs criadas, ainda que só com objetivo e critérios de aceite
+- [ ] Scaffold mínimo: `backend/` com FastAPI respondendo `/health`, `frontend/` com Vite abrindo uma página vazia, ambos rodando com um comando cada
+
+Só depois deste checklist as SPECs são detalhadas e a implementação começa, uma SPEC por vez, na ordem 06 (golden set e replay, porque tudo depende dele), 01, 02, 03, 04, 05.
+
+---
+
+## 14. Riscos
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
@@ -408,7 +486,7 @@ jev-jornada/
 
 ---
 
-## 14. Decisões
+## 15. Decisões
 
 | Tema | Decisão |
 |---|---|
@@ -424,7 +502,7 @@ Não há decisões em aberto nesta versão.
 
 ---
 
-## 15. Glossário
+## 16. Glossário
 
 - **Jev:** modelo da TypeSafe AI que devolve decisões tipadas com probabilidade calibrada, sem gerar texto.
 - **System One Model:** categoria criada pela TypeSafe para esse tipo de modelo.

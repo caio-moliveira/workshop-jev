@@ -1,0 +1,33 @@
+[project]
+name = "jev-jornada-backend"
+version = "0.1.0"
+description = "Pipeline de triagem de tickets que compara LLM e Jev, node a node."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi==0.142.2",
+    "httpx==0.28.1",
+    "langchain==1.4.3",
+    "langchain-anthropic==1.7.5",
+    "langchain-openai==1.6.7",
+    "langgraph==1.2.12",
+    "pydantic==2.13.5",
+    "pyyaml==6.0.3",
+    "typesafe-sdk==0.7.2",
+    "uvicorn[standard]==0.54.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["live: chama APIs reais; precisa de chaves e fica fora da CI"]
+addopts = "-m 'not live'"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]

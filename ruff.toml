@@ -1,0 +1,34 @@
+# Configuração única de lint/format do projeto.
+
+target-version = "py312"
+line-length = 100
+
+exclude = [".claude/skills"]
+
+[lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort — import fora de ordem é ruído de diff
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "S",    # bandit — segurança
+    "ARG",  # argumento não usado
+    "PTH",  # pathlib em vez de os.path
+    "RUF",
+]
+ignore = [
+    "E501",  # comprimento de linha é do formatter, não do lint
+]
+
+[lint.isort]
+# O pacote do projeto é `app`, em backend/app. Sem esta linha o ruff, rodando
+# da raiz, não o reconhece como primeira parte e ordena os imports errado.
+known-first-party = ["app"]
+
+[lint.per-file-ignores]
+# Em teste, assert é a ferramenta, não um problema (S101).
+"backend/tests/**" = ["S101"]
+
+[format]
+quote-style = "double"

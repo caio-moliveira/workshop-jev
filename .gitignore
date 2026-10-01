@@ -1,14 +1,16 @@
-# Python-generated files
+# Segredos
+.env
+
+# Python
 __pycache__/
 *.py[oc]
-build/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
 dist/
-wheels/
-*.egg-info
 
-# Virtual environments
-.venv
-
-# Credenciais e saída do classificador
-.env
-classificacao_emails.csv
+# Resultados de execução
+runs/
