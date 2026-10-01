@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída (falta gravar o replay real)
 
 # SPEC-02: Grafo
 

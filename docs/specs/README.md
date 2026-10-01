@@ -4,15 +4,15 @@ O PRD (`docs/PRD.md`) diz o que o projeto é. Uma SPEC diz o que uma fatia dele 
 
 ## Ordem de implementação
 
-| Ordem | SPEC | Entrega | Depende de |
-|---|---|---|---|
-| 0 | [SPEC-00](SPEC-00-passo-0.md) | Repositório, harness, CI e scaffold | nada |
-| 1 | [SPEC-06](SPEC-06-golden-set-replay.md) | Golden set, contratos de provider, `ReplayProvider` | 00 |
-| 2 | [SPEC-01](SPEC-01-providers.md) | `NodeSpec`s, `JevProvider`, `LLMProvider`, preços | 06 |
-| 3 | [SPEC-02](SPEC-02-graph.md) | Grafo LangGraph, `graph.yaml`, CLI de replay e gravação | 01 |
-| 4 | [SPEC-03](SPEC-03-api-sse.md) | API de um ticket, SSE, store JSONL | 02 |
-| 5 | [SPEC-04](SPEC-04-frontend-config-playground.md) | Telas de Configuração e Playground | 03 |
-| 6 | [SPEC-05](SPEC-05-batch-dashboard.md) | Lote, métricas agregadas, exportação, Dashboard | 03, 04 |
+| Ordem | SPEC | Entrega | Depende de | Status |
+|---|---|---|---|---|
+| 0 | [SPEC-00](SPEC-00-passo-0.md) | Repositório, harness, CI e scaffold | nada | concluída (#1) |
+| 1 | [SPEC-06](SPEC-06-golden-set-replay.md) | Golden set, contratos de provider, `ReplayProvider` | 00 | concluída (#2) |
+| 2 | [SPEC-01](SPEC-01-providers.md) | `NodeSpec`s, `JevProvider`, `LLMProvider`, preços | 06 | concluída (#3) |
+| 3 | [SPEC-02](SPEC-02-graph.md) | Grafo LangGraph, `graph.yaml`, CLI de replay e gravação | 01 | concluída (#4), falta gravar o replay real |
+| 4 | [SPEC-03](SPEC-03-api-sse.md) | API de um ticket, SSE, store JSONL | 02 | concluída (#5) |
+| 5 | [SPEC-04](SPEC-04-frontend-config-playground.md) | Telas de Configuração e Playground | 03 | concluída (#6) |
+| 6 | [SPEC-05](SPEC-05-batch-dashboard.md) | Lote, métricas agregadas, exportação, Dashboard | 03, 04 | concluída (#7) |
 
 A SPEC-06 vem antes da 01 porque tudo o mais é testado contra o golden set e roda em replay.
 
