@@ -1,4 +1,12 @@
-import type { BatchEstimate, BatchReport, GraphConfig, Pricing, RunResult, Ticket } from './types'
+import type {
+  BatchEstimate,
+  BatchReport,
+  GraphConfig,
+  Pricing,
+  Question,
+  RunResult,
+  Tool,
+} from './types'
 
 export const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000'
 
@@ -38,10 +46,12 @@ export function getDataset(params: { tag?: string; limit?: number } = {}) {
   const query = new URLSearchParams()
   if (params.tag) query.set('tag', params.tag)
   if (params.limit) query.set('limit', String(params.limit))
-  return request<Ticket[]>(`/dataset?${query}`)
+  return request<Question[]>(`/dataset?${query}`)
 }
 
-export const postRun = (body: { ticket_id: string } | { text: string }) =>
+export const getTools = () => request<Tool[]>('/tools')
+
+export const postRun = (body: { question_id: string } | { text: string }) =>
   request<{ run_id: string }>('/runs', {
     method: 'POST',
     body: JSON.stringify(body),

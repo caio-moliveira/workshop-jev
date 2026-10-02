@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída
 
 # SPEC-10: Frontend do agente de vendas
 
@@ -41,13 +41,13 @@ Textos do novo domínio, limiares renomeados, cartão "Tools disponíveis" (de `
 
 ## Critérios de aceite
 
-- [ ] `npm run lint`, `npm run typecheck`, `npm run build` e `npm run test` verdes.
-- [ ] `reduceRun` trata `tool.finished` e guarda o `ToolResult`.
-- [ ] `stepSummary` cobre etapa concluída, pulada, bloqueada e com erro.
-- [ ] `PipelineTimeline` renderiza o caminho feliz e o bloqueio no guardrail (etapas seguintes como puladas).
-- [ ] `DataTable` mostra as colunas e as linhas do `ToolResult`.
-- [ ] Os testes existentes de `runState`, `diff`, `batch` e `ProviderCard` atualizados para o domínio novo.
-- [ ] Em replay, no navegador: `q-001` passa pelas seis etapas e mostra a tabela; `adv-001` para no guardrail.
+- [x] `npm run lint`, `npm run typecheck`, `npm run build` e `npm run test` verdes.
+- [x] `reduceRun` trata `tool.finished` e guarda o `ToolResult`.
+- [x] `stepSummary` cobre etapa concluída, pulada, bloqueada e com erro.
+- [x] `PipelineTimeline` renderiza o caminho feliz e o bloqueio no guardrail (etapas seguintes como puladas).
+- [x] `DataTable` mostra as colunas e as linhas do `ToolResult`.
+- [x] Os testes existentes de `runState`, `diff`, `batch` e `ProviderCard` atualizados para o domínio novo.
+- [x] Em replay, no navegador: `q-001` passa pelas seis etapas e mostra a tabela; `adv-001` para no guardrail.
 
 ## Fora
 

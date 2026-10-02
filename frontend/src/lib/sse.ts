@@ -5,20 +5,35 @@ const RUN_EVENTS = [
   'run.started',
   'node.started',
   'provider.finished',
+  'tool.finished',
   'node.finished',
   'run.finished',
 ] as const
 
-/** Assina os eventos de uma execução. Devolve a função que cancela a assinatura. */
-export function subscribeRun(runId: string, onEvent: (event: RunEvent) => void): () => void {
+/** Assina os eventos de uma execução. Devolve a função que cancela a assinatura.
+ *  `onError` é chamado se a conexão cair antes do `run.finished`. */
+export function subscribeRun(
+  runId: string,
+  onEvent: (event: RunEvent) => void,
+  onError?: (message: string) => void,
+): () => void {
   const source = new EventSource(`${API_URL}/runs/${runId}/events`)
+  let finished = false
   const handle = (message: MessageEvent<string>) => {
     const event = JSON.parse(message.data) as RunEvent
     onEvent(event)
     // O servidor fecha o stream depois do run.finished; sem isto o EventSource reconecta.
-    if (event.type === 'run.finished') source.close()
+    if (event.type === 'run.finished') {
+      finished = true
+      source.close()
+    }
   }
   for (const type of RUN_EVENTS) source.addEventListener(type, handle)
+  source.onerror = () => {
+    if (finished) return
+    source.close()
+    onError?.('A conexão com o backend caiu durante a execução.')
+  }
   return () => source.close()
 }
 

@@ -29,9 +29,9 @@ interface Props {
 /** Barras agrupadas Jev × LLM por categoria, com um eixo só, legenda e tooltip. */
 export function ProviderBars({ title, data, category, format, yLabel }: Props) {
   return (
-    <figure className="rounded-lg border border-slate-200 bg-white p-4">
+    <figure className="rounded-card shadow-card border border-slate-200 bg-white p-4">
       <figcaption className="mb-3 text-sm font-semibold">{title}</figcaption>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} barGap={2} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
           <CartesianGrid vertical={false} stroke={INK.grid} />
           <XAxis
@@ -39,7 +39,7 @@ export function ProviderBars({ title, data, category, format, yLabel }: Props) {
             interval={0}
             angle={-30}
             textAnchor="end"
-            height={64}
+            height={84}
             tick={{ fill: INK.axis, fontSize: 11 }}
             tickLine={false}
             axisLine={{ stroke: INK.grid }}
@@ -49,7 +49,7 @@ export function ProviderBars({ title, data, category, format, yLabel }: Props) {
             tick={{ fill: INK.axis, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
-            width={72}
+            width={88}
             label={
               yLabel
                 ? {

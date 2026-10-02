@@ -1,41 +1,37 @@
 import { formatMs, formatPercent, formatTokens, formatUsd } from '../lib/format'
-import { QUESTIONS, URGENCY_LABELS, type QuestionType } from '../lib/questions'
+import { QUESTIONS, toolLabel, type QuestionType } from '../lib/questions'
 import { isError, type Answer, type DecisionNode, type ProviderOutcome } from '../lib/types'
 import { DiffBadge } from './DiffBadge'
+import { Badge, cx } from './ui'
 
-const PROVIDER_LABEL = { jev: 'Jev', llm: 'LLM' }
-
-function Badge({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span
-      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-        ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-100 text-red-700'
-      }`}
-    >
-      {label}
-    </span>
-  )
+const PROVIDER = {
+  jev: { label: 'Jev', dot: 'bg-jev', bar: 'bg-jev' },
+  llm: { label: 'LLM', dot: 'bg-llm', bar: 'bg-llm' },
 }
 
 function formatValue(type: QuestionType, answer: Answer): string {
-  if (type === 'score') return URGENCY_LABELS[Number(answer.value)] ?? String(answer.value)
   if (type === 'noul') return formatPercent(Number(answer.value))
-  return String(answer.value)
+  return toolLabel(String(answer.value))
 }
 
-function Probabilities({ type, answer }: { type: QuestionType; answer: Answer }) {
+/** Distribuição do Jev entre as opções: as três maiores, com rótulo e valor visíveis. */
+function Probabilities({ answer, bar }: { answer: Answer; bar: string }) {
   if (!answer.probabilities) return null
+  const top = Object.entries(answer.probabilities)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
   return (
-    <div className="mt-1 flex h-1.5 overflow-hidden rounded bg-slate-100">
-      {Object.entries(answer.probabilities).map(([label, p], i) => (
-        <div
-          key={label}
-          title={`${type === 'score' ? URGENCY_LABELS[Number(label)] : label}: ${formatPercent(p)}`}
-          className={i % 2 ? 'bg-indigo-300' : 'bg-indigo-500'}
-          style={{ width: `${p * 100}%` }}
-        />
+    <ul className="mt-2 flex flex-col gap-1" aria-label="Probabilidade por opção">
+      {top.map(([label, p]) => (
+        <li key={label} className="grid grid-cols-[8rem_1fr_2.5rem] items-center gap-2 text-xs">
+          <span className="truncate text-slate-600">{toolLabel(label)}</span>
+          <span className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <span className={cx('block h-full', bar)} style={{ width: `${p * 100}%` }} />
+          </span>
+          <span className="text-right text-slate-500 tabular-nums">{formatPercent(p)}</span>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }
 
@@ -46,19 +42,17 @@ interface Props {
 }
 
 export function ProviderCard({ node, outcome, disagreements }: Props) {
+  const provider = PROVIDER[outcome.provider]
   const header = (
     <div className="flex items-center justify-between gap-2">
-      <h3 className="font-semibold">
-        {PROVIDER_LABEL[outcome.provider]}
+      <h3 className="flex items-center gap-2 font-semibold">
+        <span className={cx('size-2.5 rounded-full', provider.dot)} aria-hidden="true" />
+        {provider.label}
         {!isError(outcome) && (
-          <span className="ml-2 text-xs font-normal text-slate-500">{outcome.model}</span>
+          <span className="text-xs font-normal text-slate-500">{outcome.model}</span>
         )}
       </h3>
-      {outcome.is_primary && (
-        <span className="rounded bg-indigo-600 px-1.5 py-0.5 text-xs font-medium text-white">
-          primário
-        </span>
-      )}
+      {outcome.is_primary && <Badge tone="brand">primário</Badge>}
     </div>
   )
 
@@ -79,27 +73,28 @@ export function ProviderCard({ node, outcome, disagreements }: Props) {
       <dl className="grid grid-cols-3 gap-2 text-sm">
         <div>
           <dt className="text-xs text-slate-500">Latência</dt>
-          <dd className="font-semibold">{formatMs(outcome.latency_ms)}</dd>
+          <dd className="font-semibold tabular-nums">{formatMs(outcome.latency_ms)}</dd>
         </div>
         <div>
           <dt className="text-xs text-slate-500">Tokens</dt>
-          <dd>
+          <dd className="tabular-nums">
             {formatTokens(outcome.tokens_in)} / {formatTokens(outcome.tokens_out)}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-slate-500">Custo</dt>
-          <dd>{formatUsd(outcome.cost_usd)}</dd>
+          <dd className="whitespace-nowrap tabular-nums">{formatUsd(outcome.cost_usd)}</dd>
         </div>
       </dl>
 
-      <div className="flex flex-wrap gap-1">
-        <Badge ok={outcome.parse_ok} label={outcome.parse_ok ? 'JSON válido' : 'JSON inválido'} />
-        <Badge
-          ok={outcome.values_in_schema}
-          label={outcome.values_in_schema ? 'valores nas opções' : 'valor fora das opções'}
-        />
-      </div>
+      {(!outcome.parse_ok || !outcome.values_in_schema) && (
+        <div className="flex flex-wrap gap-1">
+          {!outcome.parse_ok && <Badge tone="danger">JSON inválido</Badge>}
+          {outcome.parse_ok && !outcome.values_in_schema && (
+            <Badge tone="danger">valor fora das opções</Badge>
+          )}
+        </div>
+      )}
 
       {questions.length > 0 && (
         <ul className="flex flex-col gap-2 text-sm">
@@ -111,7 +106,10 @@ export function ProviderCard({ node, outcome, disagreements }: Props) {
                 key={question.name}
                 data-testid={`answer-${question.name}`}
                 data-disagrees={differs}
-                className={`rounded px-2 py-1 ${differs ? 'bg-amber-50 ring-1 ring-amber-300' : ''}`}
+                className={cx(
+                  'rounded-md px-2 py-1.5',
+                  differs ? 'bg-warn-soft ring-1 ring-amber-300' : 'bg-slate-50',
+                )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-slate-600">{question.label}</span>
@@ -127,10 +125,10 @@ export function ProviderCard({ node, outcome, disagreements }: Props) {
                         </span>
                       )}
                     </div>
-                    <Probabilities type={question.type} answer={answer} />
+                    <Probabilities answer={answer} bar={provider.bar} />
                   </>
                 ) : (
-                  <span className="text-slate-400">sem resposta</span>
+                  <span className="text-slate-500">sem resposta</span>
                 )}
               </li>
             )

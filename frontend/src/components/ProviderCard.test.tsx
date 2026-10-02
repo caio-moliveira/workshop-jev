@@ -8,53 +8,79 @@ import { ProviderCard } from './ProviderCard'
 afterEach(cleanup)
 
 const metric = (changes: Partial<NodeMetric> = {}): NodeMetric => ({
-  provider: 'llm',
-  model: 'gpt-5.6-luna',
+  provider: 'jev',
+  model: 'jev-1.13.0',
   answers: {
-    fila: { value: 'financeiro', confidence: 0.9, probabilities: null },
-    urgencia: { value: 2, confidence: 0.8, probabilities: null },
-    pede_reembolso: { value: 0.95, confidence: 0.9, probabilities: null },
-    risco_churn: { value: 0.1, confidence: 0.85, probabilities: null },
+    tool: {
+      value: 'vendas_mensal',
+      confidence: 0.94,
+      probabilities: { vendas_mensal: 0.94, kpis: 0.04, top_produtos: 0.01, nenhuma: 0.01 },
+    },
   },
   latency_ms: 1530,
-  tokens_in: 1190,
-  tokens_out: 88,
-  cost_usd: 0.000344,
+  tokens_in: 536,
+  tokens_out: 2,
+  cost_usd: 0.0000225,
   parse_ok: true,
   values_in_schema: true,
   raw: {},
   node: 'triage',
-  is_primary: false,
+  is_primary: true,
   ...changes,
 })
 
 describe('ProviderCard', () => {
-  it('mostra as respostas, a latência e o modelo', () => {
+  it('mostra a consulta escolhida pelo título, a confiança, a latência e o modelo', () => {
     render(<ProviderCard node="triage" outcome={metric()} disagreements={new Set()} />)
 
-    expect(screen.getByText('financeiro')).toBeTruthy()
-    expect(screen.getByText('hoje')).toBeTruthy()
+    expect(screen.getAllByText('Vendas por mês').length).toBeGreaterThan(0)
+    expect(screen.getByText('confiança 94%')).toBeTruthy()
     expect(screen.getByText('1,53 s')).toBeTruthy()
-    expect(screen.getByText(/gpt-5.6-luna/)).toBeTruthy()
+    expect(screen.getByText('jev-1.13.0')).toBeTruthy()
+    expect(screen.getByText('primário')).toBeTruthy()
+  })
+
+  it('mostra as três opções mais prováveis do Jev', () => {
+    render(<ProviderCard node="triage" outcome={metric()} disagreements={new Set()} />)
+
+    const options = screen.getByRole('list', { name: 'Probabilidade por opção' })
+    expect(options.querySelectorAll('li')).toHaveLength(3)
+    expect(screen.getByText('Indicadores gerais')).toBeTruthy()
+  })
+
+  it('noul aparece como percentual', () => {
+    const verify = metric({
+      node: 'verify',
+      answers: {
+        fiel_aos_dados: { value: 0.96, confidence: null, probabilities: null },
+        responde_pergunta: { value: 0.97, confidence: null, probabilities: null },
+        inventa_numero: { value: 0.04, confidence: null, probabilities: null },
+      },
+    })
+    render(<ProviderCard node="verify" outcome={verify} disagreements={new Set()} />)
+
+    expect(screen.getByText('96%')).toBeTruthy()
+    expect(screen.getByText('4%')).toBeTruthy()
   })
 
   it('mostra o badge de falha quando o JSON não veio válido', () => {
     render(
       <ProviderCard
         node="triage"
-        outcome={metric({ parse_ok: false, answers: {} })}
+        outcome={metric({ provider: 'llm', parse_ok: false, answers: {} })}
         disagreements={new Set()}
       />,
     )
 
     expect(screen.getByText('JSON inválido')).toBeTruthy()
+    expect(screen.getByText('sem resposta')).toBeTruthy()
   })
 
   it('mostra o badge quando o LLM inventou uma opção', () => {
     render(
       <ProviderCard
         node="triage"
-        outcome={metric({ values_in_schema: false })}
+        outcome={metric({ provider: 'llm', values_in_schema: false })}
         disagreements={new Set()}
       />,
     )
@@ -63,10 +89,10 @@ describe('ProviderCard', () => {
   })
 
   it('destaca as perguntas com discordância', () => {
-    render(<ProviderCard node="triage" outcome={metric()} disagreements={new Set(['fila'])} />)
+    render(<ProviderCard node="triage" outcome={metric()} disagreements={new Set(['tool'])} />)
 
-    expect(screen.getByTestId('answer-fila').dataset.disagrees).toBe('true')
-    expect(screen.getByTestId('answer-urgencia').dataset.disagrees).toBe('false')
+    expect(screen.getByTestId('answer-tool').dataset.disagrees).toBe('true')
+    expect(screen.getByText('Jev e LLM discordam')).toBeTruthy()
   })
 
   it('mostra o erro quando o provider falhou', () => {

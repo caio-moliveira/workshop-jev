@@ -9,7 +9,7 @@ import {
   latencyHistogram,
   reduceBatch,
 } from './batch'
-import type { BatchReport, NodeSummary, TicketRow } from './types'
+import type { BatchReport, NodeSummary, QuestionRow } from './types'
 
 const node = (latencies: number[], cost = 0): NodeSummary => ({
   calls: latencies.length,
@@ -23,8 +23,8 @@ const node = (latencies: number[], cost = 0): NodeSummary => ({
   latencies,
 })
 
-const row = (id: string, flags: Partial<TicketRow> = {}): TicketRow => ({
-  ticket_id: id,
+const row = (id: string, flags: Partial<QuestionRow> = {}): QuestionRow => ({
+  question_id: id,
   tags: [],
   action: 'auto',
   answers: {},
@@ -35,11 +35,11 @@ const row = (id: string, flags: Partial<TicketRow> = {}): TicketRow => ({
   ...flags,
 })
 
-const summary = (accuracy: number | null) => ({ n: 3, accuracy, f1_macro: null, mae: null })
+const summary = (accuracy: number | null) => ({ n: 3, accuracy, f1_macro: null })
 
 const report = (): BatchReport => ({
   batch_id: 'b1',
-  config_version: '1',
+  config_version: '2',
   mode: 'replay',
   llm_model: 'openai:gpt-5.6-luna',
   primary: 'jev',
@@ -52,11 +52,15 @@ const report = (): BatchReport => ({
     reply: { llm: node([3000], 0.05) },
   },
   by_question: {
-    fila: { jev: summary(0.9), llm: summary(0.7) },
-    segue_politica: { jev: summary(null) },
+    tool: { jev: summary(0.9), llm: summary(0.7) },
+    fiel_aos_dados: { jev: summary(null) },
   },
   agreement: {},
-  tickets: [row('t1'), row('t2', { disagrees: true }), row('t3', { wrong: true, has_error: true })],
+  questions: [
+    row('t1'),
+    row('t2', { disagrees: true }),
+    row('t3', { wrong: true, has_error: true }),
+  ],
 })
 
 describe('reduceBatch', () => {
@@ -69,7 +73,7 @@ describe('reduceBatch', () => {
     state = reduceBatch(state, {
       type: 'batch.progress',
       batch_id: 'b1',
-      data: { done: 1, total: 2, ticket: { ticket_id: 't1', action: 'auto' } },
+      data: { done: 1, total: 2, question: { question_id: 't1', action: 'auto' } },
     })
     expect(state).toMatchObject({ status: 'running', done: 1, total: 2 })
 
@@ -105,13 +109,15 @@ describe('costByNode', () => {
 
 describe('accuracyByQuestion', () => {
   it('só as perguntas com rótulo, em percentual', () => {
-    expect(accuracyByQuestion(report())).toEqual([{ question: 'Fila', jev: 90, llm: 70 }])
+    expect(accuracyByQuestion(report())).toEqual([
+      { question: 'Consulta escolhida', jev: 90, llm: 70 },
+    ])
   })
 })
 
 describe('filterRows', () => {
-  const rows = report().tickets
-  const ids = (filtered: TicketRow[]) => filtered.map((r) => r.ticket_id)
+  const rows = report().questions
+  const ids = (filtered: QuestionRow[]) => filtered.map((r) => r.question_id)
 
   it('sem filtro devolve tudo', () => {
     expect(ids(filterRows(rows, 'all'))).toEqual(['t1', 't2', 't3'])

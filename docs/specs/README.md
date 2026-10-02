@@ -16,7 +16,7 @@ O PRD (`docs/PRD.md`) diz o que o projeto é. Uma SPEC diz o que uma fatia dele 
 | 7 | [SPEC-07](SPEC-07-banco-vendas.md) | Postgres em Docker: tabelas, seed e views de vendas | 00 | concluída |
 | 8 | [SPEC-08](SPEC-08-tools.md) | Tools sobre as views, replay das tools, `GET /tools` | 07 | concluída |
 | 9 | [SPEC-09](SPEC-09-agente-vendas.md) | Troca de domínio do backend: grafo com `tool`, golden set, replay, métricas, API | 08 | concluída, falta gravar o replay real |
-| 10 | [SPEC-10](SPEC-10-frontend-vendas.md) | Frontend de vendas e redesign | 09 | aceita |
+| 10 | [SPEC-10](SPEC-10-frontend-vendas.md) | Frontend de vendas e redesign | 09 | concluída |
 
 A SPEC-06 vem antes da 01 porque tudo o mais é testado contra o golden set e roda em replay.
 
