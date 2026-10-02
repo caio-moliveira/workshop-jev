@@ -1,9 +1,10 @@
 [project]
 name = "jev-jornada-backend"
 version = "0.1.0"
-description = "Pipeline de triagem de tickets que compara LLM e Jev, node a node."
+description = "Agente de vendas que compara LLM e Jev, node a node."
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "asyncpg==0.31.0",
     "fastapi==0.142.2",
     "httpx==0.28.1",
     "langchain==1.4.3",
@@ -23,8 +24,11 @@ package = false
 pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = ["live: chama APIs reais; precisa de chaves e fica fora da CI"]
-addopts = "-m 'not live'"
+markers = [
+    "live: chama APIs reais; precisa de chaves e fica fora da CI",
+    "db: precisa do Postgres do docker-compose (docker compose up -d --wait)",
+]
+addopts = "-m 'not live and not db'"
 
 [dependency-groups]
 dev = [
