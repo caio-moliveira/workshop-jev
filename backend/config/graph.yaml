@@ -1,6 +1,6 @@
 # Configuração do grafo (PRD 7.6 e 7.7). Limiares alteram o resultado da
 # comparação: mudança só por commit `config:` e revisão humana (CLAUDE.md).
-config_version: "1"
+config_version: "2"
 
 mode: replay # replay | live; a variável PROVIDER_MODE sobrescreve
 primary: jev # jev | llm
@@ -18,8 +18,8 @@ batch_concurrency: 5 # lote: chamadas simultâneas, para não estourar rate limi
 thresholds:
   guardrail_block: 0.70
   triage_min_confidence: 0.80
-  verify_min_policy: 0.80
-  verify_max_overpromise: 0.30
+  verify_min_faithful: 0.80
+  verify_max_invented: 0.30
 
 catalog:
   - { label: "GPT-6 Sol", provider: openai, model_id: gpt-6-sol }
