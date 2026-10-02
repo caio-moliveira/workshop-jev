@@ -1,8 +1,8 @@
-"""O pipeline de triagem em LangGraph (PRD 5, 7.4, 7.5 e 7.6).
+"""O agente de vendas em LangGraph (PRD 5, 7.4, 7.5 e 7.6).
 
-guardrail → triage → reply → verify → act, com arestas condicionais pelos limiares de
-graph.yaml. Em modo `both` os dois providers rodam em paralelo, os dois vão para
-`metrics` e só o primário segue no fluxo.
+guardrail → triage → tool → reply → verify → act, com arestas condicionais pelos limiares
+de graph.yaml. Em modo `both` os dois providers rodam em paralelo, os dois vão para
+`metrics` e só o primário segue no fluxo: é a tool escolhida por ele que roda.
 """
 
 import asyncio
@@ -17,7 +17,7 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
 from app.config import GraphConfig
-from app.dataset import TicketInput, load_policy
+from app.dataset import QuestionInput
 from app.metrics.pricing import load_pricing
 from app.providers.base import DecisionProvider, NodeSpec, ProviderResult
 from app.providers.jev import JevProvider
@@ -25,15 +25,34 @@ from app.providers.llm import LLMProvider
 from app.providers.replay import FIXTURES_DIR, ReplayProvider
 from app.providers.reply import LLMReplyWriter, ReplayReplyWriter, ReplyResult, ReplyWriter
 from app.specs import GUARDRAIL, TRIAGE, VERIFY
+from app.tools import (
+    NO_TOOL,
+    TOOLS,
+    PostgresToolRunner,
+    ReplayToolRunner,
+    ToolResult,
+    ToolRunner,
+)
 
-__all__ = ["Event", "Providers", "ReplyResult", "RunResult", "build_providers", "run_ticket"]
+__all__ = ["Event", "Providers", "ReplyResult", "RunResult", "build_providers", "run_question"]
 
 Action = Literal["auto", "human", "blocked"]
+
+GUARDRAIL_REASONS = {
+    "injection": "tentativa de manipular o assistente",
+    "dado_sensivel": "pede ou contém dado pessoal sensível",
+    "fora_escopo": "fora do escopo de vendas",
+}
 
 
 class Event(BaseModel):
     type: Literal[
-        "run.started", "node.started", "provider.finished", "node.finished", "run.finished"
+        "run.started",
+        "node.started",
+        "provider.finished",
+        "tool.finished",
+        "node.finished",
+        "run.finished",
     ]
     run_id: str
     node: str | None = None
@@ -52,26 +71,30 @@ class RunResult(BaseModel):
     run_id: str
     config_version: str
     mode: Literal["replay", "live"]
-    ticket_id: str
+    question_id: str
+    question: str
     guardrail: dict | None
     triage: dict | None
+    tool_result: ToolResult | None
     draft_reply: str | None
     verify: dict | None
     action: Action
+    reason: str | None  # por que não foi `auto`, em linguagem simples
     path: list[str]
     metrics: list[NodeMetric]
     errors: list[str]
 
 
-class TriageState(TypedDict):
+class SalesState(TypedDict):
     run_id: str
-    ticket: dict  # id, text, channel; os rótulos do golden set nunca entram no estado
-    policy: str
+    question: dict  # id e text; os rótulos do golden set nunca entram no estado
     guardrail: dict | None
     triage: dict | None
+    tool_result: dict | None
     draft_reply: str | None
     verify: dict | None
     action: Action | None
+    reason: str | None
     metrics: Annotated[list[NodeMetric], operator.add]
     path: Annotated[list[str], operator.add]
     errors: Annotated[list[str], operator.add]
@@ -82,6 +105,7 @@ class Providers:
     jev: DecisionProvider
     llm: DecisionProvider
     reply: ReplyWriter
+    tools: ToolRunner
     llm_by_node: dict[str, DecisionProvider] = field(default_factory=dict)
 
     def get(self, name: str, node: str) -> DecisionProvider:
@@ -96,12 +120,14 @@ def build_providers(
             jev=ReplayProvider("jev", simulate_latency, fixtures_dir),
             llm=ReplayProvider("llm", simulate_latency, fixtures_dir),
             reply=ReplayReplyWriter(simulate_latency, fixtures_dir),
+            tools=ReplayToolRunner(simulate_latency, fixtures_dir),
         )
     pricing = load_pricing()
     return Providers(
         jev=JevProvider(pricing),
         llm=LLMProvider(config.llm_model, pricing),
         reply=LLMReplyWriter(config.llm_model, pricing),
+        tools=PostgresToolRunner(),
         llm_by_node={
             node: LLMProvider(model, pricing) for node, model in config.llm_model_overrides.items()
         },
@@ -111,35 +137,49 @@ def build_providers(
 # Regras das arestas (PRD 7.6). Recebem as respostas do primário, já serializadas.
 
 
-def is_blocked(guardrail: dict, config: GraphConfig) -> bool:
+def blocked_by(guardrail: dict, config: GraphConfig) -> list[str]:
     limit = config.thresholds.guardrail_block
-    return any(answer["value"] >= limit for answer in guardrail.values())
+    return [q for q, answer in guardrail.items() if answer["value"] >= limit]
 
 
-def triage_needs_human(triage: dict, config: GraphConfig) -> bool:
-    return triage["fila"]["confidence"] < config.thresholds.triage_min_confidence
+def triage_reason(triage: dict, config: GraphConfig) -> str | None:
+    answer = triage["tool"]
+    if answer["value"] == NO_TOOL:
+        return "nenhuma consulta disponível responde a pergunta"
+    confidence = answer.get("confidence") or 0
+    if confidence < config.thresholds.triage_min_confidence:
+        return (
+            f"confiança na escolha da consulta abaixo do limiar "
+            f"({confidence:.0%} < {config.thresholds.triage_min_confidence:.0%})"
+        )
+    return None
 
 
-def verify_needs_human(verify: dict, config: GraphConfig) -> bool:
+def verify_reason(verify: dict, config: GraphConfig) -> str | None:
     t = config.thresholds
-    return (
-        verify["segue_politica"]["value"] < t.verify_min_policy
-        or verify["promete_fora"]["value"] >= t.verify_max_overpromise
-    )
+    if verify["fiel_aos_dados"]["value"] < t.verify_min_faithful:
+        return "a verificação não confirmou que a resposta é fiel aos dados"
+    if verify["inventa_numero"]["value"] >= t.verify_max_invented:
+        return "a verificação apontou número que não está nos dados"
+    return None
 
 
-def payload(state: TriageState, node: NodeSpec) -> dict:
-    """O mesmo payload para os dois providers. `ticket_id` serve ao replay."""
-    data = {"ticket_id": state["ticket"]["id"]}
+def payload(state: SalesState, node: NodeSpec) -> dict:
+    """O mesmo payload para os dois providers. `question_id` serve ao replay."""
+    data = {"question_id": state["question"]["id"]}
     for name in node.state_fields:
         value = state[name]
-        data[name] = {k: v for k, v in value.items() if k != "id"} if name == "ticket" else value
+        if name == "question":
+            value = value["text"]
+        elif name == "tool_result" and value is not None:
+            value = {k: value[k] for k in ("tool", "columns", "rows")}
+        data[name] = value
     return data
 
 
 def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
     def decision_node(spec: NodeSpec):
-        async def run(state: TriageState) -> dict:
+        async def run(state: SalesState) -> dict:
             await emit("node.started", spec.name)
             names = config.providers_for(spec.name)
             primary = config.primary_for(spec.name)
@@ -178,21 +218,39 @@ def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
                     answers = {q: a.model_dump() for q, a in outcome.answers.items()}
 
             update = {spec.name: answers, "metrics": metrics, "path": [spec.name], "errors": errors}
-            if spec.name == "guardrail" and answers and is_blocked(answers, config):
-                update["action"] = "blocked"
+            if spec.name == "guardrail" and answers and (risks := blocked_by(answers, config)):
+                reasons = ", ".join(GUARDRAIL_REASONS[r] for r in risks)
+                update |= {"action": "blocked", "reason": f"bloqueada no guardrail: {reasons}"}
             await emit("node.finished", spec.name, {"primary": primary, "answers": answers})
             return update
 
         return run
 
-    async def reply(state: TriageState) -> dict:
+    async def tool(state: SalesState) -> dict:
+        await emit("node.started", "tool")
+        name = state["triage"]["tool"]["value"]
+        update = {"path": ["tool"]}
+        try:
+            result = await providers.tools.run(name)
+        except Exception as error:
+            update["errors"] = [f"tool/{name}: {type(error).__name__}: {error}"]
+            await emit("tool.finished", "tool", {"tool": name, "error": str(error)})
+        else:
+            update["tool_result"] = result.model_dump(mode="json")
+            await emit("tool.finished", "tool", update["tool_result"])
+        await emit("node.finished", "tool", {"tool": name, "ok": "tool_result" in update})
+        return update
+
+    async def reply(state: SalesState) -> dict:
         await emit("node.started", "reply")
         update = {"path": ["reply"]}
+        result = state["tool_result"]
+        tool_spec = TOOLS[result["tool"]]
         data = {
-            "ticket_id": state["ticket"]["id"],
-            "ticket": payload(state, TRIAGE)["ticket"],
-            "policy": state["policy"],
-            "triage": state["triage"],
+            "question_id": state["question"]["id"],
+            "question": state["question"]["text"],
+            "tool": {"name": tool_spec.name, "title": tool_spec.title},
+            "data": {"columns": result["columns"], "rows": result["rows"]},
         }
         try:
             written = await providers.reply.write(data)
@@ -219,42 +277,52 @@ def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
         await emit("node.finished", "reply", {"draft_reply": update.get("draft_reply")})
         return update
 
-    async def act(state: TriageState) -> dict:
+    async def act(state: SalesState) -> dict:
         await emit("node.started", "act")
-        complete = all(
-            state[k] is not None for k in ("guardrail", "triage", "draft_reply", "verify")
-        )
-        needs_human = (
-            not complete
-            or triage_needs_human(state["triage"], config)
-            or verify_needs_human(state["verify"], config)
-        )
-        action = "human" if needs_human else "auto"
-        await emit("node.finished", "act", {"action": action})
-        return {"action": action, "path": ["act"]}
+        reason = None
+        if state["guardrail"] is None or state["triage"] is None:
+            reason = "uma das decisões falhou"
+        elif reason := triage_reason(state["triage"], config):
+            pass
+        elif state["tool_result"] is None:
+            reason = "a consulta aos dados falhou"
+        elif state["draft_reply"] is None:
+            reason = "a resposta não foi gerada"
+        elif state["verify"] is None:
+            reason = "a verificação falhou"
+        else:
+            reason = verify_reason(state["verify"], config)
+        action = "human" if reason else "auto"
+        await emit("node.finished", "act", {"action": action, "reason": reason})
+        return {"action": action, "reason": reason, "path": ["act"]}
 
-    def after_guardrail(state: TriageState) -> str:
+    def after_guardrail(state: SalesState) -> str:
         if state["action"] == "blocked":
             return END
         return "triage" if state["guardrail"] is not None else "act"
 
-    def after_triage(state: TriageState) -> str:
+    def after_triage(state: SalesState) -> str:
         triage = state["triage"]
-        return "act" if triage is None or triage_needs_human(triage, config) else "reply"
+        return "act" if triage is None or triage_reason(triage, config) else "tool"
 
-    def after_reply(state: TriageState) -> str:
+    def after_tool(state: SalesState) -> str:
+        return "reply" if state["tool_result"] is not None else "act"
+
+    def after_reply(state: SalesState) -> str:
         return "verify" if state["draft_reply"] is not None else "act"
 
     return (
-        StateGraph(TriageState)
+        StateGraph(SalesState)
         .add_node("guardrail", decision_node(GUARDRAIL))
         .add_node("triage", decision_node(TRIAGE))
+        .add_node("tool", tool)
         .add_node("reply", reply)
         .add_node("verify", decision_node(VERIFY))
         .add_node("act", act)
         .add_edge(START, "guardrail")
         .add_conditional_edges("guardrail", after_guardrail, ["triage", "act", END])
-        .add_conditional_edges("triage", after_triage, ["reply", "act"])
+        .add_conditional_edges("triage", after_triage, ["tool", "act"])
+        .add_conditional_edges("tool", after_tool, ["reply", "act"])
         .add_conditional_edges("reply", after_reply, ["verify", "act"])
         .add_edge("verify", "act")
         .add_edge("act", END)
@@ -266,12 +334,11 @@ def new_run_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-async def run_ticket(
-    ticket: TicketInput,
+async def run_question(
+    question: QuestionInput,
     config: GraphConfig,
     emit: EventSink | None = None,
     providers: Providers | None = None,
-    policy: str | None = None,
     simulate_latency: bool = True,
     run_id: str | None = None,
 ) -> RunResult:
@@ -284,19 +351,25 @@ async def run_ticket(
 
     await send(
         "run.started",
-        data={"ticket_id": ticket.id, "mode": config.mode, "config_version": config.config_version},
+        data={
+            "question_id": question.id,
+            "question": question.text,
+            "mode": config.mode,
+            "config_version": config.config_version,
+        },
     )
     graph = build_graph(config, providers, send)
     state = await graph.ainvoke(
         {
             "run_id": run_id,
-            "ticket": {"id": ticket.id, "text": ticket.text, "channel": ticket.channel},
-            "policy": policy if policy is not None else load_policy(),
+            "question": {"id": question.id, "text": question.text},
             "guardrail": None,
             "triage": None,
+            "tool_result": None,
             "draft_reply": None,
             "verify": None,
             "action": None,
+            "reason": None,
             "metrics": [],
             "path": [],
             "errors": [],
@@ -306,12 +379,15 @@ async def run_ticket(
         run_id=run_id,
         config_version=config.config_version,
         mode=config.mode,
-        ticket_id=ticket.id,
+        question_id=question.id,
+        question=question.text,
         guardrail=state["guardrail"],
         triage=state["triage"],
+        tool_result=state["tool_result"],
         draft_reply=state["draft_reply"],
         verify=state["verify"],
         action=state["action"],
+        reason=state["reason"],
         path=state["path"],
         metrics=state["metrics"],
         errors=state["errors"],

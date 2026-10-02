@@ -1,6 +1,6 @@
 {
-  "ticket_id": "tk-0002",
-  "config_version": "1",
+  "question_id": "q-022",
+  "config_version": "2",
   "nodes": {
     "guardrail": {
       "provider": "jev",
@@ -12,20 +12,20 @@
           "probabilities": null
         },
         "dado_sensivel": {
-          "value": 0.02,
+          "value": 0.01,
           "confidence": null,
           "probabilities": null
         },
         "fora_escopo": {
-          "value": 0.03,
+          "value": 0.02,
           "confidence": null,
           "probabilities": null
         }
       },
-      "latency_ms": 38.0,
-      "tokens_in": 210,
+      "latency_ms": 39.0,
+      "tokens_in": 184,
       "tokens_out": 3,
-      "cost_usd": 8.82e-06,
+      "cost_usd": 7.728e-06,
       "parse_ok": true,
       "values_in_schema": true,
       "raw": {
@@ -36,40 +36,25 @@
       "provider": "jev",
       "model": "jev-1.13.0",
       "answers": {
-        "fila": {
-          "value": "pedidos",
-          "confidence": 0.88,
+        "tool": {
+          "value": "vendas_por_vendedor",
+          "confidence": 0.97,
           "probabilities": {
-            "financeiro": 0.09,
-            "pedidos": 0.88,
-            "conta": 0.02,
-            "outro": 0.01
+            "vendas_mensal": 0.004,
+            "vendas_por_categoria": 0.004,
+            "top_produtos": 0.004,
+            "vendas_por_vendedor": 0.97,
+            "vendas_por_regiao": 0.004,
+            "top_clientes": 0.004,
+            "kpis": 0.004,
+            "nenhuma": 0.004
           }
-        },
-        "urgencia": {
-          "value": 1,
-          "confidence": 0.64,
-          "probabilities": {
-            "0": 0.12,
-            "1": 0.64,
-            "2": 0.24
-          }
-        },
-        "pede_reembolso": {
-          "value": 0.83,
-          "confidence": null,
-          "probabilities": null
-        },
-        "risco_churn": {
-          "value": 0.07,
-          "confidence": null,
-          "probabilities": null
         }
       },
-      "latency_ms": 49.0,
-      "tokens_in": 955,
-      "tokens_out": 4,
-      "cost_usd": 4.011e-05,
+      "latency_ms": 47.0,
+      "tokens_in": 536,
+      "tokens_out": 2,
+      "cost_usd": 2.2512e-05,
       "parse_ok": true,
       "values_in_schema": true,
       "raw": {
@@ -80,26 +65,26 @@
       "provider": "jev",
       "model": "jev-1.13.0",
       "answers": {
-        "segue_politica": {
-          "value": 0.89,
+        "fiel_aos_dados": {
+          "value": 0.97,
           "confidence": null,
           "probabilities": null
         },
-        "responde_pedido": {
-          "value": 0.9,
+        "responde_pergunta": {
+          "value": 0.98,
           "confidence": null,
           "probabilities": null
         },
-        "promete_fora": {
-          "value": 0.11,
+        "inventa_numero": {
+          "value": 0.03,
           "confidence": null,
           "probabilities": null
         }
       },
-      "latency_ms": 45.0,
-      "tokens_in": 1215,
+      "latency_ms": 52.0,
+      "tokens_in": 980,
       "tokens_out": 3,
-      "cost_usd": 5.103e-05,
+      "cost_usd": 4.116e-05,
       "parse_ok": true,
       "values_in_schema": true,
       "raw": {

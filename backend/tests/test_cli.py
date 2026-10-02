@@ -6,26 +6,27 @@ def test_run_em_replay_sem_nenhuma_chave(monkeypatch, capsys):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("PROVIDER_MODE", "replay")
 
-    code = main(["run", "--limit", "3", "--no-latency"])
+    code = main(["run", "--no-latency"])
 
     out = capsys.readouterr().out
     assert code == 0
-    assert "tk-0001" in out and "tk-0002" in out and "adv-001" in out
-    assert "blocked" in out
+    assert "q-001" in out and "adv-001" in out
+    assert "tool=vendas_mensal" in out
+    assert "blocked" in out and "motivo:" in out
 
 
-def test_run_de_um_ticket(monkeypatch, capsys):
+def test_run_de_uma_pergunta(monkeypatch, capsys):
     monkeypatch.setenv("PROVIDER_MODE", "replay")
 
-    assert main(["run", "--ticket", "adv-001", "--no-latency"]) == 0
+    assert main(["run", "--question", "adv-001", "--no-latency"]) == 0
     assert "adv-001" in capsys.readouterr().out
 
 
-def test_ticket_sem_gravacao_em_replay_falha(monkeypatch, capsys):
+def test_pergunta_sem_gravacao_em_replay_falha(monkeypatch, capsys):
     monkeypatch.setenv("PROVIDER_MODE", "replay")
 
-    assert main(["run", "--ticket", "tk-0300", "--no-latency"]) != 0
-    assert "tk-0300" in capsys.readouterr().err
+    assert main(["run", "--question", "q-060", "--no-latency"]) != 0
+    assert "q-060" in capsys.readouterr().err
 
 
 def test_record_exige_modo_live_e_chaves(monkeypatch, capsys):

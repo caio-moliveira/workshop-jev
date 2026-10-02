@@ -27,8 +27,8 @@ def parse_sse(body: str) -> list[dict]:
     return events
 
 
-async def start_run(client, ticket_id="tk-0001") -> str:
-    response = await client.post("/runs", json={"ticket_id": ticket_id})
+async def start_run(client, question_id="q-001") -> str:
+    response = await client.post("/runs", json={"question_id": question_id})
     assert response.status_code == 202
     return response.json()["run_id"]
 
@@ -47,7 +47,7 @@ async def test_health(client):
     assert (await client.get("/health")).json() == {"status": "ok"}
 
 
-async def test_executa_um_ticket_e_transmite_os_eventos_em_ordem(client):
+async def test_executa_uma_pergunta_e_transmite_os_eventos_em_ordem(client):
     run_id = await start_run(client)
 
     response = await client.get(f"/runs/{run_id}/events")
@@ -60,7 +60,10 @@ async def test_executa_um_ticket_e_transmite_os_eventos_em_ordem(client):
     assert types[1:5] == ["node.started", "provider.finished", "provider.finished", "node.finished"]
     assert all(e["data"]["run_id"] == run_id for e in events)
     nodes = [e["data"]["node"] for e in events if e["event"] == "node.started"]
-    assert nodes == ["guardrail", "triage", "reply", "verify", "act"]
+    assert nodes == ["guardrail", "triage", "tool", "reply", "verify", "act"]
+    tool = next(e for e in events if e["event"] == "tool.finished")
+    assert tool["data"]["data"]["tool"] == "vendas_mensal"
+    assert tool["data"]["data"]["row_count"] == 21
 
 
 async def test_resultado_e_o_mesmo_do_evento_final(client):
@@ -139,34 +142,34 @@ async def test_pricing(client):
 
 
 async def test_dataset_filtra_por_tag_e_limita(client):
-    tickets = (await client.get("/dataset", params={"tag": "churn", "limit": 5})).json()
+    questions = (await client.get("/dataset", params={"tag": "meta", "limit": 3})).json()
 
-    assert len(tickets) == 5
-    assert all("churn" in t["tags"] for t in tickets)
-
-
-async def test_dataset_indica_quais_tickets_tem_gravacao(client):
-    tickets = (await client.get("/dataset", params={"limit": 3})).json()
-
-    assert [t["replayable"] for t in tickets] == [True, True, False]
+    assert len(questions) == 3
+    assert all("meta" in q["tags"] for q in questions)
 
 
-async def test_ticket_digitado_em_replay_e_422(client):
-    response = await client.post("/runs", json={"text": "Quero meu dinheiro de volta"})
+async def test_dataset_indica_quais_perguntas_tem_gravacao(client):
+    questions = (await client.get("/dataset", params={"limit": 3})).json()
+
+    assert [q["replayable"] for q in questions] == [True, False, False]
+
+
+async def test_pergunta_digitada_em_replay_e_422(client):
+    response = await client.post("/runs", json={"text": "Quanto vendemos em 2026?"})
 
     assert response.status_code == 422
     assert "golden set" in response.json()["detail"]
 
 
-async def test_ticket_sem_gravacao_em_replay_e_422(client):
-    assert (await client.post("/runs", json={"ticket_id": "tk-0300"})).status_code == 422
+async def test_pergunta_sem_gravacao_em_replay_e_422(client):
+    assert (await client.post("/runs", json={"question_id": "q-060"})).status_code == 422
 
 
-async def test_ticket_inexistente_e_404(client):
-    assert (await client.post("/runs", json={"ticket_id": "tk-9999"})).status_code == 404
+async def test_pergunta_inexistente_e_404(client):
+    assert (await client.post("/runs", json={"question_id": "q-999"})).status_code == 404
 
 
-async def test_pedido_sem_ticket_nem_texto_e_422(client):
+async def test_pedido_sem_pergunta_nem_texto_e_422(client):
     assert (await client.post("/runs", json={})).status_code == 422
 
 
@@ -179,7 +182,7 @@ async def test_execucao_concluida_vira_linha_no_jsonl(client):
     assert len(lines) == 1
     saved = json.loads(lines[0])
     assert saved["run_id"] == run_id
-    assert saved["config_version"] == "1"
+    assert saved["config_version"] == "2"
 
 
 async def test_resultado_sobrevive_ao_reinicio_pelo_jsonl(client):

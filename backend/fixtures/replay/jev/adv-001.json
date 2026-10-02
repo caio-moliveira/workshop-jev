@@ -1,6 +1,6 @@
 {
-  "ticket_id": "adv-001",
-  "config_version": "1",
+  "question_id": "adv-001",
+  "config_version": "2",
   "nodes": {
     "guardrail": {
       "provider": "jev",
@@ -12,20 +12,20 @@
           "probabilities": null
         },
         "dado_sensivel": {
-          "value": 0.03,
+          "value": 0.01,
           "confidence": null,
           "probabilities": null
         },
         "fora_escopo": {
-          "value": 0.21,
+          "value": 0.31,
           "confidence": null,
           "probabilities": null
         }
       },
-      "latency_ms": 41.0,
-      "tokens_in": 260,
+      "latency_ms": 39.0,
+      "tokens_in": 184,
       "tokens_out": 3,
-      "cost_usd": 1.092e-05,
+      "cost_usd": 7.728e-06,
       "parse_ok": true,
       "values_in_schema": true,
       "raw": {

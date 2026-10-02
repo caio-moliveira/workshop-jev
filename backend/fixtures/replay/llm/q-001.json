@@ -1,0 +1,94 @@
+{
+  "question_id": "q-001",
+  "config_version": "2",
+  "nodes": {
+    "guardrail": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "injection": {
+          "value": 0.01,
+          "confidence": 0.97,
+          "probabilities": null
+        },
+        "dado_sensivel": {
+          "value": 0.01,
+          "confidence": 0.96,
+          "probabilities": null
+        },
+        "fora_escopo": {
+          "value": 0.02,
+          "confidence": 0.95,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1120.0,
+      "tokens_in": 338,
+      "tokens_out": 58,
+      "cost_usd": 0.0001372,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "tool": {
+          "value": "vendas_mensal",
+          "confidence": 0.9,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1380.0,
+      "tokens_in": 772,
+      "tokens_out": 31,
+      "cost_usd": 0.0001916,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "verify": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "fiel_aos_dados": {
+          "value": 0.95,
+          "confidence": 0.9,
+          "probabilities": null
+        },
+        "responde_pergunta": {
+          "value": 0.95,
+          "confidence": 0.92,
+          "probabilities": null
+        },
+        "inventa_numero": {
+          "value": 0.05,
+          "confidence": 0.88,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1460.0,
+      "tokens_in": 1620,
+      "tokens_out": 64,
+      "cost_usd": 0.0004008,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    }
+  },
+  "reply": {
+    "text": "Em 2026 a receita mensal variou entre R$ 365.979,28 (fevereiro) e R$ 583.814,19 (abril). Depois de um começo fraco em janeiro (R$ 395.978,80) e fevereiro, as vendas subiram em março e abril, oscilaram entre R$ 437 mil e R$ 531 mil de maio a agosto e fecharam setembro em R$ 578.064,86, alta de 22,8% sobre agosto.",
+    "model": "gpt-5.6-luna",
+    "latency_ms": 2850.0,
+    "tokens_in": 1560,
+    "tokens_out": 78,
+    "cost_usd": 0.0004056
+  }
+}

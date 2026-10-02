@@ -12,8 +12,8 @@ from app.metrics.pricing import Pricing, cost_usd
 from app.providers.base import Answer, DecisionSpec, NodeSpec, ProviderResult
 
 SYSTEM_PROMPT = (
-    "Você classifica tickets de suporte. Responda cada pergunta só com base no estado "
-    "recebido, usando exatamente os valores permitidos, e informe sua confiança de 0 a 1 "
+    "Você toma decisões sobre o estado recebido. Responda cada pergunta só com base nele, "
+    "usando exatamente os valores permitidos, e informe sua confiança de 0 a 1 "
     "em cada resposta."
 )
 

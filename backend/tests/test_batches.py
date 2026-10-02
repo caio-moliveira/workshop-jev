@@ -15,17 +15,17 @@ from app.providers.replay import FIXTURES_DIR
 from .test_api import parse_sse
 
 
-def copy_fixtures(target, ticket_ids):
-    """Fixtures descartáveis: a gravação do tk-0001 reaproveitada para outros tickets.
+def copy_fixtures(target, question_ids):
+    """Fixtures descartáveis: a gravação da q-001 reaproveitada para outras perguntas.
     Só para exercitar o lote; não é dado de comparação."""
     for source in ("jev", "llm"):
-        recorded = json.loads((FIXTURES_DIR / source / "tk-0001.json").read_text(encoding="utf-8"))
+        recorded = json.loads((FIXTURES_DIR / source / "q-001.json").read_text(encoding="utf-8"))
         (target / source).mkdir(parents=True, exist_ok=True)
-        for ticket_id in ticket_ids:
-            fixture = recorded | {"ticket_id": ticket_id}
-            (target / source / f"{ticket_id}.json").write_text(json.dumps(fixture), "utf-8")
-    shutil.copy(FIXTURES_DIR / "jev" / "adv-001.json", target / "jev" / "adv-001.json")
-    shutil.copy(FIXTURES_DIR / "llm" / "adv-001.json", target / "llm" / "adv-001.json")
+        for question_id in question_ids:
+            fixture = recorded | {"question_id": question_id}
+            (target / source / f"{question_id}.json").write_text(json.dumps(fixture), "utf-8")
+        shutil.copy(FIXTURES_DIR / source / "adv-001.json", target / source / "adv-001.json")
+    shutil.copytree(FIXTURES_DIR / "tools", target / "tools")
 
 
 @pytest.fixture
@@ -33,7 +33,7 @@ async def client(tmp_path, monkeypatch):
     for key in ("TYPESAFE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("PROVIDER_MODE", "replay")
-    ids = [t.id for t in load_golden_set() if t.id.startswith("tk-")][:120]
+    ids = [q.id for q in load_golden_set() if q.id.startswith("q-")]
     copy_fixtures(tmp_path / "fixtures", ids)
     app = create_app(
         runs_dir=tmp_path / "runs", simulate_latency=False, fixtures_dir=tmp_path / "fixtures"
@@ -63,7 +63,7 @@ async def test_lote_de_10_transmite_o_progresso_e_o_relatorio(client):
     )
     report = (await client.get(f"/batches/{created['batch_id']}/report")).json()
     assert report["n"] == 10
-    assert report["config_version"] == "1"
+    assert report["config_version"] == "2"
     assert report == events[-1]["data"]["data"]
 
 
@@ -72,13 +72,13 @@ async def test_n_acima_do_golden_set_e_422(client):
 
 
 async def test_filtro_por_tag(client):
-    created = await start(client, n=5, tag="churn")
+    created = await start(client, n=3, tag="meta")
 
     await client.get(f"/batches/{created['batch_id']}/events")
     report = (await client.get(f"/batches/{created['batch_id']}/report")).json()
 
-    assert report["n"] == 5
-    assert all("churn" in row["tags"] for row in report["tickets"])
+    assert report["n"] == 3
+    assert all("meta" in row["tags"] for row in report["questions"])
 
 
 async def test_estimativa_de_custo_antes_de_rodar(client):
@@ -106,12 +106,12 @@ async def test_exporta_csv_e_json(client):
     as_json = await client.get(f"/batches/{batch_id}/export", params={"format": "json"})
     as_csv = await client.get(f"/batches/{batch_id}/export", params={"format": "csv"})
 
-    assert BatchReport.model_validate_json(as_json.text).config_version == "1"
+    assert BatchReport.model_validate_json(as_json.text).config_version == "2"
     assert "attachment" in as_csv.headers["content-disposition"]
     rows = list(csv.DictReader(io.StringIO(as_csv.text)))
-    # por ticket: 3 do guardrail + 4 da triagem + 3 da verificação, para cada provider
-    assert len(rows) == 10 * (3 + 4 + 3) * 2
-    assert {row["config_version"] for row in rows} == {"1"}
+    # por pergunta: 3 do guardrail + 1 da triagem + 3 da verificação, para cada provider
+    assert len(rows) == 10 * (3 + 1 + 3) * 2
+    assert {row["config_version"] for row in rows} == {"2"}
     assert {row["provider"] for row in rows} == {"jev", "llm"}
 
 
@@ -127,16 +127,16 @@ async def test_relatorio_sobrevive_ao_reinicio(client, tmp_path):
         exported = await c.get(f"/batches/{created['batch_id']}/export", params={"format": "csv"})
 
     assert report.json()["n"] == 3
-    assert len(list(csv.DictReader(io.StringIO(exported.text)))) == 3 * 10 * 2
+    assert len(list(csv.DictReader(io.StringIO(exported.text)))) == 3 * 7 * 2
 
 
-async def test_lote_de_100_em_replay_termina_rapido(client):
+async def test_lote_inteiro_em_replay_termina_rapido(client):
     start_time = time.perf_counter()
     created = await start(client, n=100)
     await client.get(f"/batches/{created['batch_id']}/events")
 
     assert time.perf_counter() - start_time < 10
-    assert (await client.get(f"/batches/{created['batch_id']}/report")).json()["n"] == 100
+    assert (await client.get(f"/batches/{created['batch_id']}/report")).json()["n"] == 61
 
 
 async def test_lote_desconhecido_e_404(client):

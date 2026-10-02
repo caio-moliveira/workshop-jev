@@ -10,29 +10,29 @@ FIXTURES = sorted(p for source in ("jev", "llm") for p in (FIXTURES_DIR / source
 DECISION_NODES = {"guardrail", "triage", "verify"}
 
 
-def test_existem_fixtures_para_os_tickets_do_job_de_ci():
+def test_existem_fixtures_para_as_perguntas_do_job_de_ci():
     for source in ("jev", "llm"):
-        for ticket_id in ("tk-0001", "tk-0002", "adv-001"):
-            assert (FIXTURES_DIR / source / f"{ticket_id}.json").exists()
+        for question_id in ("q-001", "q-022", "q-043", "adv-001"):
+            assert (FIXTURES_DIR / source / f"{question_id}.json").exists()
 
 
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: f"{p.parent.name}/{p.stem}")
 async def test_fixture_segue_o_contrato(path):
-    source, ticket_id = path.parent.name, path.stem
+    source, question_id = path.parent.name, path.stem
     fixture = load_fixture(path)
     provider = ReplayProvider(source, simulate_latency=False)
 
-    assert fixture["ticket_id"] == ticket_id
+    assert fixture["question_id"] == question_id
     assert set(fixture["nodes"]) <= DECISION_NODES
-    assert ("reply" in fixture) == (source == "llm" and "triage" in fixture["nodes"])
+    assert ("reply" in fixture) == (source == "llm" and "verify" in fixture["nodes"])
     for node in fixture["nodes"]:
         result = await provider.decide(
-            NodeSpec(name=node, state_fields=[], questions=[]), {"ticket_id": ticket_id}
+            NodeSpec(name=node, state_fields=[], questions=[]), {"question_id": question_id}
         )
         assert result.provider == source
 
 
-def test_fixtures_sao_de_tickets_do_golden_set():
-    ids = {t.id for t in load_golden_set()}
+def test_fixtures_sao_de_perguntas_do_golden_set():
+    ids = {q.id for q in load_golden_set()}
 
     assert {path.stem for path in FIXTURES} <= ids

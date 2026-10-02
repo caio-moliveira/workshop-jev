@@ -1,4 +1,4 @@
-"""O node `reply`: rascunho de resposta ao cliente. Só LLM (PRD 5)."""
+"""O node `reply`: a resposta à pergunta, escrita com os dados da tool. Só LLM (PRD 5)."""
 
 import asyncio
 import json
@@ -16,9 +16,10 @@ from app.providers.llm import decision_kwargs
 from app.providers.replay import FIXTURES_DIR, ReplayMissError, load_fixture
 
 SYSTEM_PROMPT = (
-    "Você é atendente da loja Mercado Jornada. Escreva um rascunho curto de resposta ao "
-    "cliente, em português, cordial e direto. Siga estritamente a política recebida: não "
-    "prometa prazo, valor ou compensação que ela não preveja."
+    "Você é analista de vendas da empresa Mercado Jornada. Responda à pergunta em português, "
+    "em poucas frases, usando só os dados recebidos da consulta. Cite os números como vieram "
+    "(valores em reais), faça no máximo contas simples sobre eles e, se os dados não "
+    "responderem à pergunta, diga isso em vez de estimar."
 )
 
 
@@ -43,7 +44,7 @@ class LLMReplyWriter:
 
     async def write(self, payload: dict) -> ReplyResult:
         state = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
-        messages = [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"Estado:\n{state}")]
+        messages = [SystemMessage(SYSTEM_PROMPT), HumanMessage(f"Pergunta e dados:\n{state}")]
 
         start = time.perf_counter()
         message = await self.chat_model.ainvoke(messages)
@@ -67,11 +68,11 @@ class ReplayReplyWriter:
         self.fixtures_dir = fixtures_dir
 
     async def write(self, payload: dict) -> ReplyResult:
-        ticket_id = payload["ticket_id"]
-        path = self.fixtures_dir / "llm" / f"{ticket_id}.json"
+        question_id = payload["question_id"]
+        path = self.fixtures_dir / "llm" / f"{question_id}.json"
         recorded = load_fixture(path).get("reply") if path.exists() else None
         if recorded is None:
-            raise ReplayMissError(f"sem gravação de reply para o ticket {ticket_id}")
+            raise ReplayMissError(f"sem gravação de reply para a pergunta {question_id}")
 
         result = ReplyResult.model_validate(recorded)
         if self.simulate_latency:

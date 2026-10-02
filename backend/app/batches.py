@@ -1,4 +1,4 @@
-"""Execução de lote: N tickets do golden set com concorrência limitada (PRD 11 e 14)."""
+"""Execução de lote: N perguntas do golden set com concorrência limitada (PRD 11 e 14)."""
 
 import asyncio
 import csv
@@ -10,15 +10,15 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.config import GraphConfig
-from app.dataset import Ticket, load_golden_set
-from app.graph import Providers, RunResult, run_ticket
+from app.dataset import Question, load_golden_set
+from app.graph import Providers, RunResult, run_question
 from app.metrics.aggregator import QUESTIONS, BatchReport, aggregate, is_correct, label_of
 from app.metrics.pricing import Pricing
 from app.providers.replay import FIXTURES_DIR, has_fixture
 from app.runs import EventChannel
 from app.store import RunStore
 
-MAX_BATCH = 330
+MAX_BATCH = 100
 
 
 class BatchEvent(BaseModel):
@@ -27,20 +27,20 @@ class BatchEvent(BaseModel):
     data: dict = {}
 
 
-def select_tickets(
+def select_questions(
     config: GraphConfig, n: int, tag: str | None, fixtures_dir: Path = FIXTURES_DIR
-) -> list[Ticket]:
-    """Em replay, só os tickets que têm gravação."""
-    tickets = load_golden_set(tag=tag)
+) -> list[Question]:
+    """Em replay, só as perguntas que têm gravação."""
+    questions = load_golden_set(tag=tag)
     if config.mode == "replay":
-        tickets = [t for t in tickets if has_fixture(t.id, fixtures_dir)]
-    return tickets[:n]
+        questions = [q for q in questions if has_fixture(q.id, fixtures_dir)]
+    return questions[:n]
 
 
 def estimate_cost(
     config: GraphConfig, n: int, pricing: Pricing, fixtures_dir: Path = FIXTURES_DIR
 ) -> float | None:
-    """Teto de custo de N tickets passando por todos os nodes, com a média de tokens das
+    """Teto de custo de N perguntas passando por todos os nodes, com a média de tokens das
     gravações e os preços atuais. None se não há gravação ou falta preço de algum modelo."""
     tokens: dict[tuple[str, str], list[tuple[int, int]]] = {}
     # Só as gravações dos providers: fixtures_dir/tools/ guarda resultados de tools.
@@ -58,7 +58,7 @@ def estimate_cost(
 
     calls = [(node, p) for node in config.providers for p in config.providers_for(node)]
     calls.append(("reply", "llm"))
-    per_ticket = 0.0
+    per_question = 0.0
     for node, provider in calls:
         samples = tokens.get((node, provider))
         model = "jev-1.13.0" if provider == "jev" else config.llm_model_for(node).split(":", 1)[-1]
@@ -67,13 +67,13 @@ def estimate_cost(
             return None
         avg_in = sum(s[0] for s in samples) / len(samples)
         avg_out = sum(s[1] for s in samples) / len(samples)
-        per_ticket += (avg_in * price.input + avg_out * price.output) / 1_000_000
-    return per_ticket * n
+        per_question += (avg_in * price.input + avg_out * price.output) / 1_000_000
+    return per_question * n
 
 
 async def run_batch(
     batch_id: str,
-    tickets: list[Ticket],
+    questions: list[Question],
     config: GraphConfig,
     providers: Providers,
     store: RunStore,
@@ -84,38 +84,38 @@ async def run_batch(
 
     await publish(
         "batch.started",
-        {"n": len(tickets), "mode": config.mode, "config_version": config.config_version},
+        {"n": len(questions), "mode": config.mode, "config_version": config.config_version},
     )
     semaphore = asyncio.Semaphore(config.batch_concurrency)
     results: list[RunResult] = []
     failed: list[str] = []
 
-    async def one(ticket: Ticket) -> None:
+    async def one(question: Question) -> None:
         async with semaphore:
             try:
-                result = await run_ticket(ticket, config, providers=providers)
+                result = await run_question(question, config, providers=providers)
             except Exception as error:
-                # Um ticket que falha conta como erro e não derruba o lote.
-                failed.append(ticket.id)
-                summary = {"ticket_id": ticket.id, "error": f"{type(error).__name__}: {error}"}
+                # Uma pergunta que falha conta como erro e não derruba o lote.
+                failed.append(question.id)
+                summary = {"question_id": question.id, "error": f"{type(error).__name__}: {error}"}
             else:
                 results.append(result)
                 store.save_run(result, batch_id)
                 summary = {
-                    "ticket_id": ticket.id,
+                    "question_id": question.id,
                     "action": result.action,
                     "has_error": bool(result.errors),
                 }
         await publish(
             "batch.progress",
-            {"done": len(results) + len(failed), "total": len(tickets), "ticket": summary},
+            {"done": len(results) + len(failed), "total": len(questions), "question": summary},
         )
 
-    await asyncio.gather(*(one(t) for t in tickets))
+    await asyncio.gather(*(one(q) for q in questions))
 
-    order = {t.id: i for i, t in enumerate(tickets)}
-    results.sort(key=lambda r: order[r.ticket_id])
-    report = aggregate(batch_id, results, tickets, config)
+    order = {q.id: i for i, q in enumerate(questions)}
+    results.sort(key=lambda r: order[r.question_id])
+    report = aggregate(batch_id, results, questions, config)
     report.errors += len(failed)
     store.save_report(report, batch_id)
     channel.extra["results"] = results
@@ -128,7 +128,7 @@ CSV_FIELDS = [
     "batch_id",
     "config_version",
     "mode",
-    "ticket_id",
+    "question_id",
     "node",
     "question",
     "provider",
@@ -146,13 +146,14 @@ CSV_FIELDS = [
 
 
 def export_csv(report: BatchReport, results: list[RunResult]) -> str:
-    """Uma linha por ticket, provider e pergunta. Latência, tokens e custo são do node."""
-    tickets = {t.id: t for t in load_golden_set()}
+    """Uma linha por pergunta do golden set, provider e pergunta de decisão. Latência,
+    tokens e custo são do node."""
+    golden = {q.id: q for q in load_golden_set()}
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=CSV_FIELDS, lineterminator="\n")
     writer.writeheader()
     for result in results:
-        ticket = tickets.get(result.ticket_id)
+        item = golden.get(result.question_id)
         for metric in result.metrics:
             if metric.node == "reply":
                 continue
@@ -161,13 +162,13 @@ def export_csv(report: BatchReport, results: list[RunResult]) -> str:
                     continue
                 answer = metric.answers.get(question)
                 value = answer.value if answer else None
-                label = label_of(ticket, question) if ticket else None
+                label = label_of(item, question) if item else None
                 writer.writerow(
                     {
                         "batch_id": report.batch_id,
                         "config_version": report.config_version,
                         "mode": report.mode,
-                        "ticket_id": result.ticket_id,
+                        "question_id": result.question_id,
                         "node": node,
                         "question": question,
                         "provider": metric.provider,

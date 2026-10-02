@@ -1,0 +1,95 @@
+{
+  "question_id": "q-043",
+  "config_version": "2",
+  "nodes": {
+    "guardrail": {
+      "provider": "jev",
+      "model": "jev-1.13.0",
+      "answers": {
+        "injection": {
+          "value": 0.01,
+          "confidence": null,
+          "probabilities": null
+        },
+        "dado_sensivel": {
+          "value": 0.01,
+          "confidence": null,
+          "probabilities": null
+        },
+        "fora_escopo": {
+          "value": 0.02,
+          "confidence": null,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 39.0,
+      "tokens_in": 184,
+      "tokens_out": 3,
+      "cost_usd": 7.728e-06,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "jev",
+      "model": "jev-1.13.0",
+      "answers": {
+        "tool": {
+          "value": "kpis",
+          "confidence": 0.95,
+          "probabilities": {
+            "vendas_mensal": 0.007,
+            "vendas_por_categoria": 0.007,
+            "top_produtos": 0.007,
+            "vendas_por_vendedor": 0.007,
+            "vendas_por_regiao": 0.007,
+            "top_clientes": 0.007,
+            "kpis": 0.95,
+            "nenhuma": 0.007
+          }
+        }
+      },
+      "latency_ms": 47.0,
+      "tokens_in": 536,
+      "tokens_out": 2,
+      "cost_usd": 2.2512e-05,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "verify": {
+      "provider": "jev",
+      "model": "jev-1.13.0",
+      "answers": {
+        "fiel_aos_dados": {
+          "value": 0.98,
+          "confidence": null,
+          "probabilities": null
+        },
+        "responde_pergunta": {
+          "value": 0.98,
+          "confidence": null,
+          "probabilities": null
+        },
+        "inventa_numero": {
+          "value": 0.02,
+          "confidence": null,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 52.0,
+      "tokens_in": 610,
+      "tokens_out": 3,
+      "cost_usd": 2.562e-05,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    }
+  }
+}
