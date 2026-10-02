@@ -1,0 +1,31 @@
+# Banco de vendas do agente (SPEC-07). Só é preciso em modo live e para gravar o replay.
+#
+#   docker compose up -d --wait     # sobe e espera o seed terminar
+#   docker compose down -v          # apaga o volume; a próxima subida refaz o seed
+#
+# Os scripts de db/init/ só rodam com o volume vazio.
+
+name: jev-jornada
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: vendas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - vendas:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1: durante o init o servidor temporário só escuta no socket unix,
+      # então o healthcheck só passa quando o seed terminou.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "vendas"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  vendas:

@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída
 
 # SPEC-07: Banco de vendas
 
@@ -27,7 +27,7 @@ Só arquivos `.sql`, executados em ordem alfabética na primeira subida (volume 
 |---|---|
 | `01_schema.sql` | `regioes`, `categorias`, `produtos`, `vendedores`, `clientes`, `pedidos`, `itens_pedido`, `metas`, com chaves estrangeiras |
 | `02_seed.sql` | gerado por `data/scripts/generate_sales_seed.py`; nunca editado à mão |
-| `03_views.sql` | as 7 views da tabela abaixo |
+| `03_views.sql` | as 7 views da tabela abaixo, sobre a view interna `base_itens_faturados` (receita e custo por item faturado), que a aplicação não lê |
 | `04_roles.sql` | role `jev_app` com `SELECT` só nas views e `default_transaction_read_only = on` |
 
 Views, todas sem parâmetro, sem `now()` (datas literais), só pedidos `faturado`, valores arredondados a 2 casas, no máximo 25 linhas:
@@ -52,12 +52,12 @@ uv run python ../data/scripts/generate_sales_seed.py     # reescreve db/init/02_
 
 ## Critérios de aceite
 
-- [ ] `docker compose up -d --wait` sobe o banco com as 8 tabelas e as 7 views.
-- [ ] Rodar o gerador reproduz byte a byte o `02_seed.sql` versionado (teste sem banco, roda na CI).
-- [ ] `02_seed.sql` tem menos de 1024 KB (limite do pre-commit).
-- [ ] Com banco (marcador `db`, fora do `pytest` padrão): a receita de 2026 é a mesma somando `vw_vendas_por_categoria`, `vw_vendas_por_regiao`, os meses de 2026 de `vw_vendas_mensal` e o indicador de receita de `vw_kpis`.
-- [ ] Com banco: toda view tem no máximo 25 linhas.
-- [ ] Com banco: `jev_app` lê as views e não consegue ler `pedidos` nem escrever em nenhuma tabela.
+- [x] `docker compose up -d --wait` sobe o banco com as 8 tabelas e as 7 views.
+- [x] Rodar o gerador reproduz byte a byte o `02_seed.sql` versionado (teste sem banco, roda na CI).
+- [x] `02_seed.sql` tem menos de 1024 KB (limite do pre-commit).
+- [x] Com banco (marcador `db`, fora do `pytest` padrão): a receita de 2026 é a mesma somando `vw_vendas_por_categoria`, `vw_vendas_por_regiao`, os meses de 2026 de `vw_vendas_mensal` e o indicador de receita de `vw_kpis`.
+- [x] Com banco: toda view tem no máximo 25 linhas.
+- [x] Com banco: `jev_app` lê as views e não consegue ler `pedidos` nem escrever em nenhuma tabela.
 
 ## Fora
 

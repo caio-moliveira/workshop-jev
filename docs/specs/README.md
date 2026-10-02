@@ -13,7 +13,7 @@ O PRD (`docs/PRD.md`) diz o que o projeto é. Uma SPEC diz o que uma fatia dele 
 | 4 | [SPEC-03](SPEC-03-api-sse.md) | API de um ticket, SSE, store JSONL | 02 | concluída (#5) |
 | 5 | [SPEC-04](SPEC-04-frontend-config-playground.md) | Telas de Configuração e Playground | 03 | concluída (#6) |
 | 6 | [SPEC-05](SPEC-05-batch-dashboard.md) | Lote, métricas agregadas, exportação, Dashboard | 03, 04 | concluída (#7) |
-| 7 | [SPEC-07](SPEC-07-banco-vendas.md) | Postgres em Docker: tabelas, seed e views de vendas | 00 | aceita |
+| 7 | [SPEC-07](SPEC-07-banco-vendas.md) | Postgres em Docker: tabelas, seed e views de vendas | 00 | concluída |
 | 8 | [SPEC-08](SPEC-08-tools.md) | Tools sobre as views, replay das tools, `GET /tools` | 07 | aceita |
 | 9 | [SPEC-09](SPEC-09-agente-vendas.md) | Troca de domínio do backend: grafo com `tool`, golden set, replay, métricas, API | 08 | aceita |
 | 10 | [SPEC-10](SPEC-10-frontend-vendas.md) | Frontend de vendas e redesign | 09 | aceita |

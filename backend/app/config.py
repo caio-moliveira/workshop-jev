@@ -51,6 +51,11 @@ class GraphConfig(BaseModel):
         return self.llm_model_overrides.get(node, self.llm_model)
 
 
+def database_url() -> str:
+    """Banco de vendas. O padrão é o Postgres do docker-compose, com o usuário que só lê views."""
+    return os.environ.get("DATABASE_URL", "postgresql://jev_app:jev_app@localhost:5433/vendas")
+
+
 def load_config(path: Path = CONFIG_DIR / "graph.yaml") -> GraphConfig:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     if mode := os.environ.get("PROVIDER_MODE"):

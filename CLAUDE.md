@@ -11,12 +11,15 @@ cd backend && uv sync && uv run uvicorn app.main:app --reload     # http://local
 cd frontend && npm install && npm run dev                          # http://localhost:5173
 ```
 
-`PROVIDER_MODE=replay` é o padrão de desenvolvimento. Rode com chaves reais só quando a tarefa pedir.
+`PROVIDER_MODE=replay` é o padrão de desenvolvimento e não precisa de banco. Rode com chaves reais só quando a tarefa pedir.
+
+Banco de vendas (modo live e gravação do replay): `docker compose up -d --wait` na raiz, Postgres em `localhost:5433`. Os scripts de `db/init/` só rodam com o volume vazio: `docker compose down -v` para refazer.
 
 ## Como testar
 
 ```
 cd backend && uv run pytest
+cd backend && uv run pytest -m db                                 # com o banco no ar
 cd backend && PROVIDER_MODE=replay uv run python -m app.cli run --limit 3   # contrato: sem chaves
 pre-commit run --all-files                                         # da raiz: ruff, gitleaks, higiene
 cd frontend && npm run lint && npm run typecheck && npm run build && npm run test
@@ -41,7 +44,7 @@ Toda SPEC concluída tem teste; PR sem teste não entra.
 
 ## Não tocar sem pedir
 
-`data/golden_set.json`, `backend/fixtures/replay/`, `backend/config/pricing.yaml` e os limiares em `backend/config/graph.yaml`. Mudanças neles alteram o resultado da comparação: exigem commit `data:` ou `config:` explícito e revisão humana.
+`data/golden_set.json`, `backend/fixtures/replay/`, `db/init/` (seed e views), `backend/config/pricing.yaml` e os limiares em `backend/config/graph.yaml`. Mudanças neles alteram o resultado da comparação: exigem commit `data:` ou `config:` explícito e revisão humana.
 
 ## Segredos
 
