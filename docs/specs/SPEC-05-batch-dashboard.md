@@ -1,4 +1,4 @@
-Status: concluída
+Status: concluída; domínio substituído pela SPEC-09 (backend) e SPEC-10 (frontend)
 
 # SPEC-05: Lote e Dashboard
 
