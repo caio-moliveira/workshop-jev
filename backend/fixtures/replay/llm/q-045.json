@@ -84,6 +84,7 @@
     }
   },
   "reply": {
+    "tool": "kpis",
     "text": "Por pouco, não: de janeiro a setembro de 2026 a empresa atingiu 99,6% da meta, com receita de R$ 4.320.667,00.",
     "model": "gpt-5.6-luna",
     "latency_ms": 2850.0,
