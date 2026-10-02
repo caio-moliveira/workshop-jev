@@ -36,7 +36,7 @@ Toda SPEC concluída tem teste; PR sem teste não entra.
 
 ## Regras do domínio
 
-- O mesmo `NodeSpec` alimenta os dois providers. Não crie prompts separados por provider.
+- O mesmo `NodeSpec` alimenta os dois providers. A única exceção é `llm_prompt_style: native` (SPEC-12): o LLM recebe os system prompts de `backend/config/prompts/`, com a mesma saída estruturada. Não crie outros prompts por provider.
 - Em modo `both`, só o provider primário segue no fluxo; os dois vão para `metrics`.
 - O node `reply` é só LLM. O node `tool` é código: roda a tool escolhida pelo primário.
 - O nome da view vem só do registro em `backend/app/tools.py`; nada que o modelo devolve vira SQL.

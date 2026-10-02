@@ -17,7 +17,7 @@ import sys
 from app.config import GraphConfig, load_config
 from app.dataset import Question, load_golden_set
 from app.graph import RunResult, run_question
-from app.providers.replay import FIXTURES_DIR, has_fixture
+from app.providers.replay import FIXTURES_DIR, has_fixture, llm_fixture_dir
 from app.tools import TOOLS, PostgresToolRunner, write_tool_fixture
 
 DECISION_NODES = ("guardrail", "triage", "verify")
@@ -38,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     record = commands.add_parser("record", help="executa em live e grava as fixtures")
     record.add_argument("--limit", type=int)
     record.add_argument("--concurrency", type=int, default=5)
+    record.add_argument(
+        "--llm-prompts",
+        choices=["spec", "native"],
+        help="instruções do LLM; sem a opção, vale llm_prompt_style de graph.yaml",
+    )
     commands.add_parser("snapshot", help="lê as views do banco e grava o replay das tools")
     args = parser.parse_args(argv)
 
@@ -46,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config()
     if args.command == "run":
         return asyncio.run(run_command(config, args.question, args.limit, not args.no_latency))
+    if args.llm_prompts:
+        config = config.model_copy(update={"llm_prompt_style": args.llm_prompts})
     return asyncio.run(record_command(config, args.limit, args.concurrency))
 
 
@@ -56,11 +63,12 @@ async def run_command(
     if question_id:
         questions = [q for q in questions if q.id == question_id]
     if config.mode == "replay":
-        missing = [q.id for q in questions if not has_fixture(q.id)]
+        style = config.llm_prompt_style
+        missing = [q.id for q in questions if not has_fixture(q.id, prompt_style=style)]
         if question_id and missing:
             print(f"sem gravação de replay para {question_id}", file=sys.stderr)
             return 1
-        questions = [q for q in questions if has_fixture(q.id)]
+        questions = [q for q in questions if has_fixture(q.id, prompt_style=style)]
     questions = questions[:limit]
     if not questions:
         print("nenhuma pergunta para executar", file=sys.stderr)
@@ -154,7 +162,8 @@ def write_fixtures(result: RunResult, config: GraphConfig) -> None:
                 "tokens_out": reply.tokens_out,
                 "cost_usd": reply.cost_usd,
             }
-        path = FIXTURES_DIR / source / f"{result.question_id}.json"
+        directory = llm_fixture_dir(config.llm_prompt_style) if source == "llm" else source
+        path = FIXTURES_DIR / directory / f"{result.question_id}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(fixture, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

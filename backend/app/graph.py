@@ -22,7 +22,7 @@ from app.metrics.pricing import load_pricing
 from app.providers.base import DecisionProvider, NodeSpec, ProviderResult
 from app.providers.jev import JevProvider
 from app.providers.llm import LLMProvider
-from app.providers.replay import FIXTURES_DIR, ReplayProvider
+from app.providers.replay import FIXTURES_DIR, ReplayProvider, llm_fixture_dir
 from app.providers.reply import LLMReplyWriter, ReplayReplyWriter, ReplyResult, ReplyWriter
 from app.specs import GUARDRAIL, TRIAGE, VERIFY
 from app.tools import (
@@ -116,20 +116,22 @@ def build_providers(
     config: GraphConfig, simulate_latency: bool = True, fixtures_dir: Path = FIXTURES_DIR
 ) -> Providers:
     if config.mode == "replay":
+        llm_dir = llm_fixture_dir(config.llm_prompt_style)
         return Providers(
             jev=ReplayProvider("jev", simulate_latency, fixtures_dir),
-            llm=ReplayProvider("llm", simulate_latency, fixtures_dir),
-            reply=ReplayReplyWriter(simulate_latency, fixtures_dir),
+            llm=ReplayProvider("llm", simulate_latency, fixtures_dir, llm_dir),
+            reply=ReplayReplyWriter(simulate_latency, fixtures_dir, llm_dir),
             tools=ReplayToolRunner(simulate_latency, fixtures_dir),
         )
     pricing = load_pricing()
     return Providers(
         jev=JevProvider(pricing),
-        llm=LLMProvider(config.llm_model, pricing),
+        llm=LLMProvider(config.llm_model, pricing, prompt_style=config.llm_prompt_style),
         reply=LLMReplyWriter(config.llm_model, pricing),
         tools=PostgresToolRunner(),
         llm_by_node={
-            node: LLMProvider(model, pricing) for node, model in config.llm_model_overrides.items()
+            node: LLMProvider(model, pricing, prompt_style=config.llm_prompt_style)
+            for node, model in config.llm_model_overrides.items()
         },
     )
 

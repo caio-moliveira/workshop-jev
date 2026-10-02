@@ -64,10 +64,11 @@ export function Playground({ config, questionId }: Props) {
   const pipelines = { jev, llm }
 
   useEffect(() => {
+    // O que tem gravação depende do modo e das instruções do LLM: recarrega quando mudam.
     getDataset()
       .then(setQuestions)
       .catch((e: Error) => setError(e.message))
-  }, [])
+  }, [config.mode, config.llm_prompt_style])
 
   const examples = questions.filter((q) => q.replayable)
   const selected = questions.find((q) => q.id === selectedId)
@@ -168,6 +169,12 @@ export function Playground({ config, questionId }: Props) {
               'Modo live: chama os modelos e o banco de verdade. Ctrl+Enter envia.'
             )}
           </p>
+          {replay && questions.length > 0 && examples.length === 0 && (
+            <p className="bg-warn-soft rounded-lg px-3 py-2 text-sm text-amber-900">
+              Nenhuma pergunta tem gravação para a configuração atual (LLM com system prompt por
+              etapa). Volte para "Mesmas perguntas do Jev" na Configuração ou use o modo Live.
+            </p>
+          )}
           {examples.length > 0 && (
             <div className="flex flex-wrap gap-2" aria-label="Perguntas de exemplo">
               {examples.map((q) => (
@@ -212,8 +219,11 @@ export function Playground({ config, questionId }: Props) {
                   {title}
                 </h2>
                 <p className="text-xs text-slate-500">
-                  {id === 'jev' ? 'Jev' : 'O LLM'} decide guardrail, triagem e verificação; o LLM
-                  escreve a resposta.
+                  {id === 'jev' ? 'Jev' : 'O LLM'} decide guardrail, triagem e verificação
+                  {id === 'llm' &&
+                    config.llm_prompt_style === 'native' &&
+                    ' com system prompt por etapa'}
+                  ; o LLM escreve a resposta.
                 </p>
               </header>
               <Card>

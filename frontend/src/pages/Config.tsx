@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 
 import { Badge, Button, Card, CardTitle, cx } from '../components/ui'
-import { getTools, putConfig } from '../lib/api'
+import { getPrompts, getTools, putConfig } from '../lib/api'
 import { formatPrice } from '../lib/format'
 import { DECISION_NODES, NODE_HINTS, NODE_LABELS } from '../lib/questions'
-import type { GraphConfig, NodeMode, Pricing, Thresholds, Tool } from '../lib/types'
+import type {
+  DecisionNode,
+  GraphConfig,
+  NodeMode,
+  Pricing,
+  PromptStyle,
+  Thresholds,
+  Tool,
+} from '../lib/types'
 
 const MODES: { value: NodeMode; label: string }[] = [
   { value: 'llm', label: 'LLM' },
@@ -37,10 +45,24 @@ const THRESHOLDS: { key: keyof Thresholds; label: string; hint: string }[] = [
 
 const PROVIDER_GROUPS = { openai: 'OpenAI', anthropic: 'Anthropic' }
 
+const PROMPT_STYLES: { value: PromptStyle; label: string; hint: string }[] = [
+  {
+    value: 'spec',
+    label: 'Mesmas perguntas do Jev',
+    hint: 'O LLM recebe exatamente as perguntas e critérios que o Jev recebe. Teste controlado.',
+  },
+  {
+    value: 'native',
+    label: 'System prompt por etapa',
+    hint: 'O LLM recebe um system prompt escrito para cada etapa, como em produção.',
+  },
+]
+
 const sameConfig = (a: GraphConfig, b: GraphConfig) =>
   a.mode === b.mode &&
   a.primary === b.primary &&
   a.llm_model === b.llm_model &&
+  a.llm_prompt_style === b.llm_prompt_style &&
   DECISION_NODES.every((n) => a.providers[n] === b.providers[n]) &&
   (Object.keys(a.thresholds) as (keyof Thresholds)[]).every(
     (k) => a.thresholds[k] === b.thresholds[k],
@@ -57,12 +79,16 @@ export function Config({ config, pricing, onSaved }: Props) {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [tools, setTools] = useState<Tool[]>([])
+  const [prompts, setPrompts] = useState<Record<string, string> | null>(null)
   const dirty = !sameConfig(draft, config)
 
   useEffect(() => {
     getTools()
       .then(setTools)
       .catch(() => setTools([]))
+    getPrompts()
+      .then(setPrompts)
+      .catch(() => setPrompts(null))
   }, [])
 
   const update = (changes: Partial<GraphConfig>) => {
@@ -165,6 +191,65 @@ export function Config({ config, pricing, onSaved }: Props) {
               </label>
             ))}
           </fieldset>
+        </Card>
+
+        <Card>
+          <CardTitle hint="Como o LLM recebe cada etapa de decisão. A saída estruturada é a mesma nos dois modos, e o Jev não muda.">
+            Instruções do LLM
+          </CardTitle>
+          <fieldset className="grid gap-3 sm:grid-cols-2">
+            <legend className="sr-only">Instruções do LLM</legend>
+            {PROMPT_STYLES.map(({ value, label, hint }) => (
+              <label
+                key={value}
+                className={cx(
+                  'flex gap-3 rounded-lg border p-3',
+                  draft.llm_prompt_style === value
+                    ? 'border-brand-500 bg-brand-50'
+                    : 'border-slate-200 hover:border-slate-300',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="llm_prompt_style"
+                  className="accent-brand-600 mt-1"
+                  checked={draft.llm_prompt_style === value}
+                  onChange={() => update({ llm_prompt_style: value })}
+                />
+                <span>
+                  <span className="block text-sm font-medium">{label}</span>
+                  <span className="block text-xs text-slate-500">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          {draft.llm_prompt_style === 'native' && draft.mode === 'replay' && (
+            <p className="bg-warn-soft mt-3 rounded-lg px-3 py-2 text-sm text-amber-900">
+              Em replay só rodam perguntas gravadas neste modo, e ainda não há gravação. Use o modo
+              Live ou grave com{' '}
+              <code className="font-mono text-xs">app.cli record --llm-prompts native</code>.
+            </p>
+          )}
+          {prompts && (
+            <details className="mt-4">
+              <summary className="text-brand-600 hover:text-brand-700 text-sm font-medium">
+                Ver os system prompts
+              </summary>
+              <div className="mt-3 flex flex-col gap-3">
+                {Object.entries(prompts).map(([node, text]) => (
+                  <div key={node}>
+                    <p className="mb-1 text-xs text-slate-600">
+                      <span className="font-medium">{NODE_LABELS[node as DecisionNode]}</span> ·{' '}
+                      <code className="font-mono">backend/config/prompts/{node}.md</code>
+                    </p>
+                    <pre className="max-h-64 overflow-auto rounded-lg bg-slate-50 p-3 font-mono text-xs whitespace-pre-wrap text-slate-700">
+                      {text}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </Card>
 
         <Card>

@@ -8,7 +8,9 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, create_model
 
+from app.config import PromptStyle
 from app.metrics.pricing import Pricing, cost_usd
+from app.prompts import load_prompt
 from app.providers.base import Answer, DecisionSpec, NodeSpec, ProviderResult
 
 SYSTEM_PROMPT = (
@@ -23,17 +25,24 @@ VALUE_TYPES = {"choice": str, "score": int, "noul": float}
 
 
 class LLMProvider:
-    def __init__(self, model: str, pricing: Pricing, chat_model: BaseChatModel | None = None):
+    def __init__(
+        self,
+        model: str,
+        pricing: Pricing,
+        chat_model: BaseChatModel | None = None,
+        prompt_style: PromptStyle = "spec",
+    ):
         self.model = model
         self.model_id = model.split(":", 1)[-1]
         self.pricing = pricing
+        self.prompt_style = prompt_style
         self.chat_model = chat_model or init_chat_model(model, **decision_kwargs(model))
 
     async def decide(self, node: NodeSpec, payload: dict) -> ProviderResult:
         structured = self.chat_model.with_structured_output(build_schema(node), include_raw=True)
 
         start = time.perf_counter()
-        output = await structured.ainvoke(build_prompt(node, payload))
+        output = await structured.ainvoke(build_prompt(node, payload, self.prompt_style))
         latency_ms = (time.perf_counter() - start) * 1000
 
         raw = output["raw"]
@@ -56,6 +65,7 @@ class LLMProvider:
             raw={
                 "content": raw.content,
                 "parsing_error": str(output["parsing_error"]) if output["parsing_error"] else None,
+                "prompt_style": self.prompt_style,
             },
         )
 
@@ -77,7 +87,13 @@ def build_schema(node: NodeSpec) -> type[BaseModel]:
     return create_model(f"{node.name}_answers", **fields)
 
 
-def build_prompt(node: NodeSpec, payload: dict) -> list[BaseMessage]:
+def build_prompt(node: NodeSpec, payload: dict, style: PromptStyle = "spec") -> list[BaseMessage]:
+    if style == "native":
+        # Como em produção: o system prompt da etapa e, na mensagem, só o que o usuário e o
+        # sistema produziram. O schema de saída continua o mesmo do modo spec.
+        state = {k: v for k, v in payload.items() if k != "question_id"}
+        content = json.dumps(state, ensure_ascii=False, indent=2, default=str)
+        return [SystemMessage(load_prompt(node.name)), HumanMessage(content)]
     questions = "\n\n".join(describe_question(q) for q in node.questions)
     state = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
     return [

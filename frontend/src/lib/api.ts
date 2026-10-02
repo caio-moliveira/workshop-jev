@@ -51,6 +51,8 @@ export function getDataset(params: { tag?: string; limit?: number } = {}) {
 
 export const getTools = () => request<Tool[]>('/tools')
 
+export const getPrompts = () => request<Record<string, string>>('/prompts')
+
 export type RunBody = ({ question_id: string } | { text: string }) & {
   pipeline?: 'jev' | 'llm'
 }

@@ -7,6 +7,8 @@ export type DecisionNode = 'guardrail' | 'triage' | 'verify'
 export type NodeName = 'guardrail' | 'triage' | 'tool' | 'reply' | 'verify' | 'act'
 export type Action = 'auto' | 'human' | 'blocked'
 export type Mode = 'replay' | 'live'
+/** spec: o LLM recebe o NodeSpec, como o Jev. native: system prompt por etapa. */
+export type PromptStyle = 'spec' | 'native'
 
 export interface Thresholds {
   guardrail_block: number
@@ -26,6 +28,7 @@ export interface GraphConfig {
   mode: Mode
   primary: ProviderName
   llm_model: string
+  llm_prompt_style: PromptStyle
   providers: Record<DecisionNode, NodeMode>
   llm_model_overrides: Partial<Record<DecisionNode, string>>
   thresholds: Thresholds
