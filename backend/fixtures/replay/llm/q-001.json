@@ -84,6 +84,7 @@
     }
   },
   "reply": {
+    "tool": "vendas_mensal",
     "text": "Em 2026 a receita mensal variou entre R$ 365.979,28 (fevereiro) e R$ 583.814,19 (abril). Depois de um começo fraco em janeiro (R$ 395.978,80) e fevereiro, as vendas subiram em março e abril, oscilaram entre R$ 437 mil e R$ 531 mil de maio a agosto e fecharam setembro em R$ 578.064,86, alta de 22,8% sobre agosto.",
     "model": "gpt-5.6-luna",
     "latency_ms": 2850.0,

@@ -84,6 +84,7 @@
     }
   },
   "reply": {
+    "tool": "kpis",
     "text": "De janeiro a setembro de 2026 a receita foi de R$ 4.320.667,00, 13,4% acima do mesmo período de 2025 (R$ 3.809.491,20).",
     "model": "gpt-5.6-luna",
     "latency_ms": 2850.0,

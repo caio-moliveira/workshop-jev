@@ -47,6 +47,12 @@ class GraphConfig(BaseModel):
         available = self.providers_for(node)
         return self.primary if self.primary in available else available[0]
 
+    def for_pipeline(self, provider: ProviderName) -> "GraphConfig":
+        """Uma execução em que um provider só decide todas as etapas (visão lado a lado)."""
+        return self.model_copy(
+            update={"providers": dict.fromkeys(self.providers, provider), "primary": provider}
+        )
+
     def llm_model_for(self, node: str) -> str:
         return self.llm_model_overrides.get(node, self.llm_model)
 

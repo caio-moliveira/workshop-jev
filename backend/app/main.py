@@ -11,7 +11,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, Field, model_validator
 
 from app.batches import MAX_BATCH, estimate_cost, export_csv, run_batch, select_questions
-from app.config import GraphConfig, load_config
+from app.config import GraphConfig, ProviderName, load_config
 from app.dataset import Question, QuestionInput, load_golden_set
 from app.graph import RunResult, build_providers, new_run_id, run_question
 from app.metrics.aggregator import BatchReport
@@ -67,6 +67,8 @@ BatchChannelDep = Annotated[EventChannel, Depends(get_batch_channel)]
 class RunRequest(BaseModel):
     question_id: str | None = None
     text: str | None = None
+    # Lado a lado: o provider que decide todas as etapas desta execução. Sem ele, vale /config.
+    pipeline: ProviderName | None = None
 
     @model_validator(mode="after")
     def one_source(self):
@@ -150,6 +152,8 @@ def create_app(
     @app.post("/runs", status_code=status.HTTP_202_ACCEPTED)
     async def post_run(request: RunRequest, state: StateDep) -> RunCreated:
         config = state.config
+        if request.pipeline is not None:
+            config = config.for_pipeline(request.pipeline)
         run_id = new_run_id()
         if request.text is not None:
             if config.mode == "replay":

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { BLOCKED, HAPPY, RUN, TOOL, decision, replay, SAFE } from '../test/runs'
-import { currentNode, failRun, initialRunState, reduceRun } from './runState'
+import { currentNode, failRun, initialRunState, reduceRun, runTotals } from './runState'
 
 describe('reduceRun', () => {
   it('caminho feliz: as seis etapas concluídas e a resposta liberada', () => {
@@ -79,5 +79,12 @@ describe('failRun', () => {
     expect(failRun(finished, 'caiu')).toBe(finished)
     expect(failRun(initialRunState(), 'caiu').status).toBe('idle')
     expect(RUN).toBe('r1')
+  })
+})
+
+describe('runTotals', () => {
+  it('soma a latência das chamadas e da consulta e o custo dos modelos', () => {
+    // 3 decisões × (Jev 40 ms + LLM 1.200 ms) + resposta 2.850 ms + consulta 12 ms
+    expect(runTotals(replay(HAPPY))).toEqual({ ms: 3 * 1240 + 2850 + 12, cost: 0.007 })
   })
 })

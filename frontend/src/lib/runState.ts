@@ -53,6 +53,12 @@ export const initialRunState = (runId: string | null = null): RunViewState => ({
 export const failRun = (state: RunViewState, error: string): RunViewState =>
   state.status === 'running' ? { ...state, status: 'failed', error } : state
 
+/** Eventos SSE mais a queda da conexão, para o useReducer da tela. */
+export type RunAction = RunEvent | { type: 'failed'; error: string }
+
+export const runReducer = (state: RunViewState, action: RunAction): RunViewState =>
+  action.type === 'failed' ? failRun(state, action.error) : reduceRun(state, action)
+
 /** Transforma a sequência de eventos SSE no estado da tela. Função pura. */
 export function reduceRun(state: RunViewState, event: RunEvent): RunViewState {
   switch (event.type) {
@@ -116,6 +122,18 @@ export function reduceRun(state: RunViewState, event: RunEvent): RunViewState {
         result,
       }
     }
+  }
+}
+
+/** Tempo somado das chamadas de modelo e da consulta, e custo dos modelos. */
+export function runTotals(state: RunViewState): { ms: number; cost: number } {
+  const metrics = Object.values(state.outcomes)
+    .flat()
+    .filter((o) => !('error' in o))
+  const toolMs = state.tool && !('error' in state.tool) ? state.tool.latency_ms : 0
+  return {
+    ms: metrics.reduce((sum, m) => sum + ('latency_ms' in m ? m.latency_ms : 0), 0) + toolMs,
+    cost: metrics.reduce((sum, m) => sum + ('cost_usd' in m ? m.cost_usd : 0), 0),
   }
 }
 

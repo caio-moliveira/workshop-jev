@@ -146,6 +146,7 @@ def write_fixtures(result: RunResult, config: GraphConfig) -> None:
         reply = next((m for m in result.metrics if m.node == "reply"), None)
         if source == "llm" and reply is not None:
             fixture["reply"] = {
+                "tool": result.tool_result.tool,
                 "text": reply.raw["text"],
                 "model": reply.model,
                 "latency_ms": reply.latency_ms,

@@ -73,6 +73,12 @@ class ReplayReplyWriter:
         recorded = load_fixture(path).get("reply") if path.exists() else None
         if recorded is None:
             raise ReplayMissError(f"sem gravação de reply para a pergunta {question_id}")
+        # A resposta depende da consulta: gravada para outra tool, ela citaria outros dados.
+        tool = payload["tool"]["name"]
+        if recorded.get("tool", tool) != tool:
+            raise ReplayMissError(
+                f"a resposta gravada para {question_id} usa {recorded['tool']}, não {tool}"
+            )
 
         result = ReplyResult.model_validate(recorded)
         if self.simulate_latency:
