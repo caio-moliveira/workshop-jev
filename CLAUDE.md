@@ -1,6 +1,6 @@
 # JEV Jornada
 
-Pipeline de triagem de tickets de suporte em LangGraph, onde cada node de decisão roda com um LLM, com o Jev ou com os dois, e um frontend React compara resposta, latência, tokens e custo. É o exercício de um workshop e uma ferramenta reutilizável de medição.
+Agente de vendas em LangGraph: responde perguntas sobre os dados de vendas de uma empresa fictícia escolhendo uma tool que lê uma view do Postgres. Cada node de decisão (guardrail, triagem, verificação) roda com um LLM, com o Jev ou com os dois, e um frontend React compara resposta, latência, tokens e custo. É o exercício de um workshop e uma ferramenta reutilizável de medição.
 
 O quê e por quê: `docs/PRD.md`. O que implementar: `docs/specs/` (comece pelo `README.md` de lá). Só implemente a partir de uma SPEC com status `aceita`.
 
@@ -38,7 +38,9 @@ Toda SPEC concluída tem teste; PR sem teste não entra.
 
 - O mesmo `NodeSpec` alimenta os dois providers. Não crie prompts separados por provider.
 - Em modo `both`, só o provider primário segue no fluxo; os dois vão para `metrics`.
-- O node `reply` é só LLM.
+- O node `reply` é só LLM. O node `tool` é código: roda a tool escolhida pelo primário.
+- O nome da view vem só do registro em `backend/app/tools.py`; nada que o modelo devolve vira SQL.
+- Views sem parâmetro e sem `now()`: o replay grava um resultado por tool em `fixtures/replay/tools/`.
 - Preços vêm de `config/pricing.yaml`, nunca hardcoded.
 - Tokens vêm da resposta da API e latência do relógio monotônico, nunca estimados.
 

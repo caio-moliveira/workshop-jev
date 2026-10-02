@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída (falta gravar o replay real)
 
 # SPEC-09: Agente de vendas
 
@@ -57,6 +57,7 @@ class RunResult(BaseModel):
     draft_reply: str | None
     verify: dict | None
     action: Literal["auto", "human", "blocked"]
+    reason: str | None           # por que não foi `auto`, em linguagem simples
     path: list[str]
     metrics: list[NodeMetric]
     errors: list[str]
@@ -65,6 +66,8 @@ class RunResult(BaseModel):
 - `guardrail → triage → tool → reply → verify → act`. O payload leva `question_id` no topo, para o replay.
 - `tool` é código: roda a tool escolhida pelo primário e emite `tool.finished` com o `ToolResult` (ou `{tool, error}`). Não entra em `metrics`.
 - `reply` é só LLM e recebe a pergunta, a tool e os dados. O prompt manda responder só com os dados recebidos.
+- `reason` é preenchido pelo `guardrail` (bloqueio, com os riscos) ou pelo `act` (primeira regra que mandou para `human`). O frontend mostra esse texto.
+- O payload de `verify` leva de `tool_result` só `tool`, `columns` e `rows`.
 - Arestas:
 
 | De | Para | Regra |
@@ -98,7 +101,7 @@ class Question(QuestionInput):
 
 ### Replay
 
-`fixtures/replay/<jev|llm>/<question_id>.json`, no formato da SPEC-06 com `question_id` no lugar de `ticket_id`; `reply` só em `llm/`. Gravações iniciais escritas à mão para `q-001`, `q-002` e `adv-001`, com os números da resposta tirados de `fixtures/replay/tools/`. `record` roda `snapshot` antes de gravar.
+`fixtures/replay/<jev|llm>/<question_id>.json`, no formato da SPEC-06 com `question_id` no lugar de `ticket_id`; `reply` só em `llm/`. Gravações iniciais escritas à mão, com os números da resposta tirados de `fixtures/replay/tools/`: `q-001` (vendas_mensal), `q-022` (vendas_por_vendedor), `q-043` (kpis), `q-045` (Jev e LLM escolhem tools diferentes), `q-050` (`nenhuma`, vai para `human`) e `adv-001` (bloqueada). Em replay com `primary: llm`, a tool do LLM roda pelo snapshot, mas a resposta gravada continua a do caminho do Jev. `record` roda `snapshot` antes de gravar.
 
 ### Métricas, lote, API e CLI
 
@@ -111,17 +114,17 @@ class Question(QuestionInput):
 
 Testes com providers e tools falsos, sem rede e sem banco.
 
-- [ ] `injection` ≥ 0,70: `action="blocked"`, `path == ["guardrail"]`.
-- [ ] Caminho feliz: `path == ["guardrail", "triage", "tool", "reply", "verify", "act"]`, `action="auto"`, `tool_result` preenchido.
-- [ ] `tool == "nenhuma"`: `action="human"`, `tool` não roda.
-- [ ] `tool.confidence` 0,60: `action="human"`.
-- [ ] Tool que falha: `action="human"`, `errors` não vazio, `reply` não roda.
-- [ ] `inventa_numero` 0,40: `action="human"`.
-- [ ] Em `both`, Jev e LLM escolhendo tools diferentes: roda a tool do primário e `metrics` tem os dois.
-- [ ] Ordem dos eventos: `run.started`, por node `node.started` / `provider.finished` / `node.finished`, `tool.finished` dentro do node `tool`, e `run.finished`.
-- [ ] Golden set: 80 ids únicos, 60 `q-` e 20 `adv-`, cada tool e `nenhuma` com ao menos 6, cada risco com ao menos 6 adversariais, nenhuma `q-` marcada no guardrail.
-- [ ] Agregador: acurácia e F1 da `tool` contra o golden set.
-- [ ] `PROVIDER_MODE=replay uv run python -m app.cli run --limit 3` termina com código 0 sem chaves e sem banco.
+- [x] `injection` ≥ 0,70: `action="blocked"`, `path == ["guardrail"]`.
+- [x] Caminho feliz: `path == ["guardrail", "triage", "tool", "reply", "verify", "act"]`, `action="auto"`, `tool_result` preenchido.
+- [x] `tool == "nenhuma"`: `action="human"`, `tool` não roda.
+- [x] `tool.confidence` 0,60: `action="human"`.
+- [x] Tool que falha: `action="human"`, `errors` não vazio, `reply` não roda.
+- [x] `inventa_numero` 0,40: `action="human"`.
+- [x] Em `both`, Jev e LLM escolhendo tools diferentes: roda a tool do primário e `metrics` tem os dois.
+- [x] Ordem dos eventos: `run.started`, por node `node.started` / `provider.finished` / `node.finished`, `tool.finished` dentro do node `tool`, e `run.finished`.
+- [x] Golden set: 80 ids únicos, 60 `q-` e 20 `adv-`, cada tool e `nenhuma` com ao menos 6, cada risco com ao menos 6 adversariais, nenhuma `q-` marcada no guardrail.
+- [x] Agregador: acurácia e F1 da `tool` contra o golden set.
+- [x] `PROVIDER_MODE=replay uv run python -m app.cli run --limit 3` termina com código 0 sem chaves e sem banco.
 - [ ] **Pendente, precisa das chaves do apresentador:** `record` das 80 perguntas.
 
 ## Fora

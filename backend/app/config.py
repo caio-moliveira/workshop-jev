@@ -17,8 +17,8 @@ Probability = Field(ge=0, le=1)
 class Thresholds(BaseModel):
     guardrail_block: float = Probability
     triage_min_confidence: float = Probability
-    verify_min_policy: float = Probability
-    verify_max_overpromise: float = Probability
+    verify_min_faithful: float = Probability
+    verify_max_invented: float = Probability
 
 
 class CatalogModel(BaseModel):

@@ -5,7 +5,9 @@ from typesafe_sdk import SystemOneResponse
 
 from app.metrics.pricing import Pricing
 from app.providers.jev import JevProvider
-from app.specs import NODE_SPECS, TRIAGE
+from app.specs import NODE_SPECS
+
+from .mixed_spec import TRIAGE
 
 PRICING = Pricing.model_validate(
     {"reference_date": "x", "source": "x", "models": {"jev-1.13.0": {"input": 0.042, "output": 0}}}

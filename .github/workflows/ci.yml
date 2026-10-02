@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: replay de três tickets
+      - name: replay de três perguntas
         working-directory: backend
         env:
           PROVIDER_MODE: replay

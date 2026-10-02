@@ -4,7 +4,9 @@ from pydantic import ValidationError
 
 from app.metrics.pricing import Pricing
 from app.providers.llm import LLMProvider, build_prompt
-from app.specs import NODE_SPECS, TRIAGE
+from app.specs import NODE_SPECS
+
+from .mixed_spec import TRIAGE
 
 PRICING = Pricing.model_validate(
     {

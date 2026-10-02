@@ -14,10 +14,7 @@ from app.specs import TRIAGE
 
 pytestmark = pytest.mark.live
 
-PAYLOAD = {
-    "ticket": {"text": "Fui cobrado duas vezes no pedido A-104. Quero o estorno hoje ou cancelo."},
-    "policy": "Cobrança duplicada: estorno integral do valor cobrado a mais, sempre.",
-}
+PAYLOAD = {"question_id": "live", "question": "Qual região vendeu mais em 2026?"}
 
 
 def require(key: str) -> None:
@@ -30,7 +27,7 @@ async def test_jev_de_verdade():
 
     result = await JevProvider(load_pricing()).decide(TRIAGE, PAYLOAD)
 
-    assert result.answers["fila"].value == "financeiro"
+    assert result.answers["tool"].value == "vendas_por_regiao"
     assert result.tokens_in > 0
 
 
@@ -40,5 +37,5 @@ async def test_llm_de_verdade():
     result = await LLMProvider("openai:gpt-5.6-luna", load_pricing()).decide(TRIAGE, PAYLOAD)
 
     assert result.parse_ok
-    assert result.answers["fila"].value == "financeiro"
+    assert result.answers["tool"].value == "vendas_por_regiao"
     assert result.tokens_in > 0

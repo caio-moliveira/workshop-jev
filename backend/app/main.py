@@ -1,4 +1,5 @@
-"""API do backend: configuração, dataset, execução de um ticket e de lotes, com SSE (PRD 11)."""
+"""API do backend: configuração, dataset, tools, execução de uma pergunta e de lotes, com
+SSE (PRD 11)."""
 
 from collections.abc import AsyncIterable
 from pathlib import Path
@@ -9,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, Field, model_validator
 
-from app.batches import MAX_BATCH, estimate_cost, export_csv, run_batch, select_tickets
+from app.batches import MAX_BATCH, estimate_cost, export_csv, run_batch, select_questions
 from app.config import GraphConfig, load_config
-from app.dataset import Ticket, TicketInput, load_golden_set
-from app.graph import RunResult, build_providers, new_run_id, run_ticket
+from app.dataset import Question, QuestionInput, load_golden_set
+from app.graph import RunResult, build_providers, new_run_id, run_question
 from app.metrics.aggregator import BatchReport
 from app.metrics.pricing import Pricing, load_pricing
 from app.providers.replay import FIXTURES_DIR, has_fixture
@@ -64,13 +65,13 @@ BatchChannelDep = Annotated[EventChannel, Depends(get_batch_channel)]
 
 
 class RunRequest(BaseModel):
-    ticket_id: str | None = None
+    question_id: str | None = None
     text: str | None = None
 
     @model_validator(mode="after")
     def one_source(self):
-        if (self.ticket_id is None) == (self.text is None):
-            raise ValueError("informe ticket_id ou text, um dos dois")
+        if (self.question_id is None) == (self.text is None):
+            raise ValueError("informe question_id ou text, um dos dois")
         return self
 
 
@@ -78,7 +79,7 @@ class RunCreated(BaseModel):
     run_id: str
 
 
-class DatasetTicket(Ticket):
+class DatasetQuestion(Question):
     replayable: bool
 
 
@@ -88,7 +89,7 @@ class BatchRequest(BaseModel):
 
 
 class BatchEstimate(BaseModel):
-    n: int  # quantos tickets vão rodar de fato (em replay, só os que têm gravação)
+    n: int  # quantas perguntas vão rodar de fato (em replay, só os que têm gravação)
     estimated_cost_usd: float | None
 
 
@@ -140,10 +141,10 @@ def create_app(
         state: StateDep,
         tag: Annotated[str | None, Query()] = None,
         limit: Annotated[int | None, Query(ge=1)] = None,
-    ) -> list[DatasetTicket]:
+    ) -> list[DatasetQuestion]:
         return [
-            DatasetTicket(**t.model_dump(), replayable=has_fixture(t.id, state.fixtures_dir))
-            for t in load_golden_set(tag=tag, limit=limit)
+            DatasetQuestion(**q.model_dump(), replayable=has_fixture(q.id, state.fixtures_dir))
+            for q in load_golden_set(tag=tag, limit=limit)
         ]
 
     @app.post("/runs", status_code=status.HTTP_202_ACCEPTED)
@@ -152,17 +153,17 @@ def create_app(
         run_id = new_run_id()
         if request.text is not None:
             if config.mode == "replay":
-                raise HTTPException(422, "modo replay só executa tickets do golden set")
-            ticket = TicketInput(id=f"adhoc-{run_id}", text=request.text)
+                raise HTTPException(422, "modo replay só executa perguntas do golden set")
+            question = QuestionInput(id=f"adhoc-{run_id}", text=request.text)
         else:
-            ticket = next((t for t in load_golden_set() if t.id == request.ticket_id), None)
-            if ticket is None:
-                raise HTTPException(404, f"ticket {request.ticket_id} não está no golden set")
-            if config.mode == "replay" and not has_fixture(ticket.id, state.fixtures_dir):
-                raise HTTPException(422, f"sem gravação de replay para {ticket.id}")
+            question = next((q for q in load_golden_set() if q.id == request.question_id), None)
+            if question is None:
+                raise HTTPException(404, f"pergunta {request.question_id} não está no golden set")
+            if config.mode == "replay" and not has_fixture(question.id, state.fixtures_dir):
+                raise HTTPException(422, f"sem gravação de replay para {question.id}")
 
         channel = state.runs.open(run_id)
-        state.runs.spawn(execute(state, channel, ticket, config, run_id))
+        state.runs.spawn(execute(state, channel, question, config, run_id))
         return RunCreated(run_id=run_id)
 
     @app.get("/runs/{run_id}/events", response_class=EventSourceResponse)
@@ -190,7 +191,7 @@ def create_app(
         n: Annotated[int, Query(ge=1, le=MAX_BATCH)] = 100,
         tag: Annotated[str | None, Query()] = None,
     ) -> BatchEstimate:
-        count = len(select_tickets(state.config, n, tag, state.fixtures_dir))
+        count = len(select_questions(state.config, n, tag, state.fixtures_dir))
         cost = estimate_cost(state.config, count, load_pricing(), state.fixtures_dir)
         return BatchEstimate(n=count, estimated_cost_usd=cost)
 
@@ -198,16 +199,16 @@ def create_app(
     async def post_batch(request: BatchRequest, state: StateDep) -> BatchCreated:
         # A configuração é copiada: PUT /config durante o lote não afeta este lote.
         config = state.config.model_copy(deep=True)
-        tickets = select_tickets(config, request.n, request.tag, state.fixtures_dir)
-        if not tickets:
-            raise HTTPException(422, "nenhum ticket para executar com esse filtro")
+        questions = select_questions(config, request.n, request.tag, state.fixtures_dir)
+        if not questions:
+            raise HTTPException(422, "nenhuma pergunta para executar com esse filtro")
         batch_id = new_run_id()
         channel = state.batches.open(batch_id)
         state.batches.spawn(
-            run_batch(batch_id, tickets, config, state.providers(config), state.store, channel)
+            run_batch(batch_id, questions, config, state.providers(config), state.store, channel)
         )
-        cost = estimate_cost(config, len(tickets), load_pricing(), state.fixtures_dir)
-        return BatchCreated(batch_id=batch_id, n=len(tickets), estimated_cost_usd=cost)
+        cost = estimate_cost(config, len(questions), load_pricing(), state.fixtures_dir)
+        return BatchCreated(batch_id=batch_id, n=len(questions), estimated_cost_usd=cost)
 
     @app.get("/batches/{batch_id}/events", response_class=EventSourceResponse)
     async def batch_events(channel: BatchChannelDep) -> AsyncIterable[ServerSentEvent]:
@@ -253,11 +254,15 @@ def load_report(state: AppState, batch_id: str) -> BatchReport:
 
 
 async def execute(
-    state: AppState, channel: EventChannel, ticket: TicketInput, config: GraphConfig, run_id: str
+    state: AppState,
+    channel: EventChannel,
+    question: QuestionInput,
+    config: GraphConfig,
+    run_id: str,
 ) -> None:
     try:
-        result = await run_ticket(
-            ticket, config, emit=channel.publish, providers=state.providers(config), run_id=run_id
+        result = await run_question(
+            question, config, emit=channel.publish, providers=state.providers(config), run_id=run_id
         )
     except Exception as error:
         await channel.finish(error=f"{type(error).__name__}: {error}")
