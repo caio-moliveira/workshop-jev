@@ -18,6 +18,7 @@ from app.metrics.pricing import Pricing, load_pricing
 from app.providers.replay import FIXTURES_DIR, has_fixture
 from app.runs import EventChannel, Registry
 from app.store import RUNS_DIR, RunStore
+from app.tools import TOOLS, Tool
 
 
 class AppState:
@@ -129,6 +130,10 @@ def create_app(
     @app.get("/pricing")
     def get_pricing() -> Pricing:
         return load_pricing()
+
+    @app.get("/tools")
+    def get_tools() -> list[Tool]:
+        return list(TOOLS.values())
 
     @app.get("/dataset")
     def get_dataset(

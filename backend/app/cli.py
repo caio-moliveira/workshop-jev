@@ -3,6 +3,7 @@
     uv run python -m app.cli run --limit 3                 # usa o mode de graph.yaml / PROVIDER_MODE
     uv run python -m app.cli run --ticket tk-0042
     uv run --env-file ../.env python -m app.cli record     # live: grava fixtures/replay/
+    uv run python -m app.cli snapshot                      # banco: grava fixtures/replay/tools/
 
 Em replay, `run` só considera os tickets que têm gravação.
 """
@@ -17,6 +18,7 @@ from app.config import GraphConfig, load_config
 from app.dataset import Ticket, load_golden_set
 from app.graph import RunResult, run_ticket
 from app.providers.replay import FIXTURES_DIR, has_fixture
+from app.tools import TOOLS, PostgresToolRunner, write_tool_fixture
 
 DECISION_NODES = ("guardrail", "triage", "verify")
 KEYS = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
@@ -36,8 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     record = commands.add_parser("record", help="executa em live e grava as fixtures")
     record.add_argument("--limit", type=int)
     record.add_argument("--concurrency", type=int, default=5)
+    commands.add_parser("snapshot", help="lê as views do banco e grava o replay das tools")
     args = parser.parse_args(argv)
 
+    if args.command == "snapshot":
+        return asyncio.run(snapshot_command())
     config = load_config()
     if args.command == "run":
         return asyncio.run(run_command(config, args.ticket, args.limit, not args.no_latency))
@@ -102,6 +107,22 @@ async def record_command(config: GraphConfig, limit: int | None, concurrency: in
 
     results = await asyncio.gather(*(one(t) for t in tickets))
     return 0 if all(results) else 1
+
+
+async def snapshot_command() -> int:
+    """Grava o resultado de cada tool. Precisa só do banco, não de chaves."""
+    runner = PostgresToolRunner()
+    try:
+        for name in TOOLS:
+            result = await runner.run(name)
+            path = write_tool_fixture(result)
+            print(f"{name}: {result.row_count} linhas → {path.relative_to(FIXTURES_DIR.parent)}")
+    except OSError as error:
+        print(f"banco fora do ar ({error}); rode docker compose up -d --wait", file=sys.stderr)
+        return 1
+    finally:
+        await runner.close()
+    return 0
 
 
 def write_fixtures(result: RunResult, config: GraphConfig) -> None:

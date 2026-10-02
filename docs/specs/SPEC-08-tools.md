@@ -1,4 +1,4 @@
-Status: aceita
+Status: concluída
 
 # SPEC-08: Tools
 
@@ -50,7 +50,7 @@ class UnknownToolError(Exception): ...
 
 ### `backend/app/config.py`
 
-`database_url() -> str`: `DATABASE_URL` do ambiente, ou `postgresql://jev_app:jev_app@localhost:5433/vendas`, que aponta para o compose da SPEC-07.
+`database_url() -> str` (entrou com a SPEC-07): `DATABASE_URL` do ambiente, ou `postgresql://jev_app:jev_app@localhost:5433/vendas`, que aponta para o compose da SPEC-07.
 
 ### Gravação
 
@@ -66,13 +66,13 @@ uv run python -m app.cli snapshot      # precisa só do banco; grava as 7 tools
 
 ## Critérios de aceite
 
-- [ ] Toda view de `TOOLS` existe em `db/init/03_views.sql` (teste estático, sem banco).
-- [ ] `UnknownToolError` para tool fora do registro, sem consulta ao banco.
-- [ ] `ReplayToolRunner` devolve o `ToolResult` gravado e levanta `ReplayMissError` sem gravação.
-- [ ] As 7 gravações de `fixtures/replay/tools/` validam como `ToolResult`.
-- [ ] Os globs de fixtures de `batches.estimate_cost` e `tests/test_fixtures.py` ignoram `tools/`.
-- [ ] `GET /tools` devolve as 7 tools.
-- [ ] Com banco (marcador `db`): `PostgresToolRunner` lê cada view, `truncated` é falso e `row_count` bate com a view.
+- [x] Toda view de `TOOLS` existe em `db/init/03_views.sql` (teste estático, sem banco).
+- [x] `UnknownToolError` para tool fora do registro, sem consulta ao banco.
+- [x] `ReplayToolRunner` devolve o `ToolResult` gravado e levanta `ReplayMissError` sem gravação.
+- [x] As 7 gravações de `fixtures/replay/tools/` validam como `ToolResult`.
+- [x] Os globs de fixtures de `batches.estimate_cost` e `tests/test_fixtures.py` ignoram `tools/`.
+- [x] `GET /tools` devolve as 7 tools.
+- [x] Com banco (marcador `db`): `PostgresToolRunner` lê cada view, `truncated` é falso e `row_count` bate com a view.
 
 ## Fora
 

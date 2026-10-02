@@ -6,7 +6,7 @@ from app.dataset import load_golden_set
 from app.providers.base import NodeSpec
 from app.providers.replay import FIXTURES_DIR, ReplayProvider, load_fixture
 
-FIXTURES = sorted(FIXTURES_DIR.glob("*/*.json"))
+FIXTURES = sorted(p for source in ("jev", "llm") for p in (FIXTURES_DIR / source).glob("*.json"))
 DECISION_NODES = {"guardrail", "triage", "verify"}
 
 
