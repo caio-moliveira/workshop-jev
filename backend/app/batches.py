@@ -43,7 +43,9 @@ def estimate_cost(
     """Teto de custo de N tickets passando por todos os nodes, com a média de tokens das
     gravações e os preços atuais. None se não há gravação ou falta preço de algum modelo."""
     tokens: dict[tuple[str, str], list[tuple[int, int]]] = {}
-    for path in fixtures_dir.glob("*/*.json"):
+    # Só as gravações dos providers: fixtures_dir/tools/ guarda resultados de tools.
+    paths = [p for source in ("jev", "llm") for p in (fixtures_dir / source).glob("*.json")]
+    for path in paths:
         fixture = json.loads(path.read_text(encoding="utf-8"))
         for node, result in fixture["nodes"].items():
             tokens.setdefault((node, path.parent.name), []).append(
