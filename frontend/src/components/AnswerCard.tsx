@@ -2,6 +2,7 @@ import { formatMs, formatUsd } from '../lib/format'
 import { NODE_LABELS } from '../lib/questions'
 import { currentNode, runTotals, type RunViewState } from '../lib/runState'
 import type { Action } from '../lib/types'
+import { Markdown } from './Markdown'
 import { Badge, Card, EmptyState, Skeleton, cx, type Tone } from './ui'
 
 export const ACTION: Record<Action, { label: string; tone: Tone }> = {
@@ -84,14 +85,14 @@ export function AnswerCard({ run, compact = false }: Props) {
               Rascunho retido para revisão
             </p>
           )}
-          <p
+          <Markdown
             className={cx(
-              'text-[15px] leading-relaxed whitespace-pre-wrap',
+              'text-[15px] leading-relaxed',
               held ? 'text-slate-500' : 'text-slate-800',
             )}
           >
             {run.draftReply}
-          </p>
+          </Markdown>
         </>
       ) : (
         <p className="text-sm text-slate-500">O agente não escreveu resposta para esta pergunta.</p>
