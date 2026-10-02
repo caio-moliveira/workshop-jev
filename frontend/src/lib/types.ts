@@ -1,18 +1,18 @@
 // Espelho, escrito à mão, dos modelos do backend (app/config.py, app/graph.py,
-// app/providers/base.py, app/dataset.py). Mudou lá, muda aqui.
+// app/providers/base.py, app/dataset.py, app/tools.py). Mudou lá, muda aqui.
 
 export type ProviderName = 'jev' | 'llm'
 export type NodeMode = 'llm' | 'jev' | 'both'
 export type DecisionNode = 'guardrail' | 'triage' | 'verify'
-export type NodeName = DecisionNode | 'reply' | 'act'
+export type NodeName = 'guardrail' | 'triage' | 'tool' | 'reply' | 'verify' | 'act'
 export type Action = 'auto' | 'human' | 'blocked'
 export type Mode = 'replay' | 'live'
 
 export interface Thresholds {
   guardrail_block: number
   triage_min_confidence: number
-  verify_min_policy: number
-  verify_max_overpromise: number
+  verify_min_faithful: number
+  verify_max_invented: number
 }
 
 export interface CatalogModel {
@@ -43,16 +43,17 @@ export interface Pricing {
   models: Record<string, ModelPrice>
 }
 
-export interface Ticket {
+export interface Tool {
+  name: string
+  view: string
+  title: string
+  description: string
+}
+
+export interface Question {
   id: string
   text: string
-  channel: 'email' | 'chat' | 'formulario'
-  labels: {
-    fila: string
-    urgencia: number
-    pede_reembolso: boolean
-    risco_churn: boolean
-  }
+  labels: { tool: string }
   guardrail: {
     injection: boolean
     dado_sensivel: boolean
@@ -88,16 +89,32 @@ export interface NodeMetric {
 export type ProviderOutcome =
   NodeMetric | { provider: ProviderName; is_primary?: boolean; error: string }
 
+export interface ToolResult {
+  tool: string
+  view: string
+  columns: string[]
+  rows: Record<string, string | number | null>[]
+  row_count: number
+  truncated: boolean
+  latency_ms: number
+}
+
+/** O que chega em `tool.finished`: o resultado, ou o erro da consulta. */
+export type ToolOutcome = ToolResult | { tool: string; error: string }
+
 export interface RunResult {
   run_id: string
   config_version: string
   mode: Mode
-  ticket_id: string
+  question_id: string
+  question: string
   guardrail: Record<string, Answer> | null
   triage: Record<string, Answer> | null
+  tool_result: ToolResult | null
   draft_reply: string | null
   verify: Record<string, Answer> | null
   action: Action
+  reason: string | null
   path: NodeName[]
   metrics: NodeMetric[]
   errors: string[]
@@ -122,6 +139,7 @@ export type RunEvent =
       node: NodeName
       data: ProviderOutcome
     }
+  | { type: 'tool.finished'; run_id: string; node: 'tool'; data: ToolOutcome }
   | {
       type: 'node.finished'
       run_id: string
@@ -134,13 +152,15 @@ export const isError = (
   outcome: ProviderOutcome,
 ): outcome is { provider: ProviderName; is_primary?: boolean; error: string } => 'error' in outcome
 
+export const isToolError = (outcome: ToolOutcome): outcome is { tool: string; error: string } =>
+  'error' in outcome
+
 // Lote (app/metrics/aggregator.py e app/batches.py)
 
 export interface QuestionSummary {
   n: number
   accuracy: number | null
   f1_macro: number | null
-  mae: number | null
 }
 
 export interface NodeSummary {
@@ -163,8 +183,8 @@ export interface ProviderSummary {
   latency_p95: number | null
 }
 
-export interface TicketRow {
-  ticket_id: string
+export interface QuestionRow {
+  question_id: string
   tags: string[]
   action: Action | null
   answers: Record<string, Partial<Record<ProviderName, string | number | null>>>
@@ -186,7 +206,7 @@ export interface BatchReport {
   by_node: Record<string, Partial<Record<ProviderName, NodeSummary>>>
   by_question: Record<string, Partial<Record<ProviderName, QuestionSummary>>>
   agreement: Record<string, number>
-  tickets: TicketRow[]
+  questions: QuestionRow[]
 }
 
 export interface BatchEstimate {
@@ -202,7 +222,7 @@ export type BatchEvent =
       data: {
         done: number
         total: number
-        ticket: { ticket_id: string; action?: Action; error?: string }
+        question: { question_id: string; action?: Action; error?: string }
       }
     }
   | { type: 'batch.finished'; batch_id: string; data: BatchReport }

@@ -1,133 +1,64 @@
 import { describe, expect, it } from 'vitest'
 
-import { initialRunState, reduceRun, takenEdges } from './runState'
-import type { NodeMetric, NodeName, RunEvent, RunResult } from './types'
-
-const RUN = 'r1'
-
-const metric = (node: NodeName, provider: 'jev' | 'llm'): NodeMetric => ({
-  provider,
-  model: provider,
-  answers: {},
-  latency_ms: 10,
-  tokens_in: 1,
-  tokens_out: 1,
-  cost_usd: 0,
-  parse_ok: true,
-  values_in_schema: true,
-  raw: {},
-  node,
-  is_primary: provider === 'jev',
-})
-
-const result = (action: RunResult['action'], path: NodeName[]): RunResult => ({
-  run_id: RUN,
-  config_version: '1',
-  mode: 'replay',
-  ticket_id: 'tk-0001',
-  guardrail: null,
-  triage: null,
-  draft_reply: action === 'auto' ? 'Seu estorno foi solicitado.' : null,
-  verify: null,
-  action,
-  path,
-  metrics: [],
-  errors: [],
-})
-
-function nodeEvents(node: NodeName, providers: ('jev' | 'llm')[]): RunEvent[] {
-  return [
-    { type: 'node.started', run_id: RUN, node, data: {} },
-    ...providers.map((p): RunEvent => ({
-      type: 'provider.finished',
-      run_id: RUN,
-      node,
-      data: metric(node, p),
-    })),
-    { type: 'node.finished', run_id: RUN, node, data: {} },
-  ]
-}
-
-const replay = (events: RunEvent[]) => events.reduce(reduceRun, initialRunState())
+import { BLOCKED, HAPPY, RUN, TOOL, decision, replay, SAFE } from '../test/runs'
+import { currentNode, failRun, initialRunState, reduceRun } from './runState'
 
 describe('reduceRun', () => {
-  it('caminho feliz: os cinco nodes concluídos e ação automática', () => {
-    const path: NodeName[] = ['guardrail', 'triage', 'reply', 'verify', 'act']
-    const state = replay([
-      { type: 'run.started', run_id: RUN, node: null, data: {} },
-      ...nodeEvents('guardrail', ['jev', 'llm']),
-      ...nodeEvents('triage', ['jev', 'llm']),
-      ...nodeEvents('reply', ['llm']),
-      ...nodeEvents('verify', ['jev', 'llm']),
-      ...nodeEvents('act', []),
-      {
-        type: 'run.finished',
-        run_id: RUN,
-        node: null,
-        data: result('auto', path),
-      },
-    ])
+  it('caminho feliz: as seis etapas concluídas e a resposta liberada', () => {
+    const state = replay(HAPPY)
 
     expect(state.status).toBe('finished')
-    expect(Object.values(state.nodes)).toEqual(['done', 'done', 'done', 'done', 'done'])
+    expect(Object.values(state.nodes)).toEqual(['done', 'done', 'done', 'done', 'done', 'done'])
     expect(state.action).toBe('auto')
-    expect(state.path).toEqual(path)
+    expect(state.path).toEqual(['guardrail', 'triage', 'tool', 'reply', 'verify', 'act'])
     expect(state.outcomes.triage).toHaveLength(2)
-    expect(state.draftReply).toBe('Seu estorno foi solicitado.')
+    expect(state.draftReply).toBe('Em setembro a receita foi de R$ 578.064,86.')
+    expect(state.question).toBe('Como foi a receita mês a mês em 2026?')
   })
 
-  it('ticket bloqueado: guardrail bloqueado e os demais pulados', () => {
-    const state = replay([
-      { type: 'run.started', run_id: RUN, node: null, data: {} },
-      ...nodeEvents('guardrail', ['jev', 'llm']),
-      {
-        type: 'run.finished',
-        run_id: RUN,
-        node: null,
-        data: result('blocked', ['guardrail']),
-      },
-    ])
+  it('tool.finished guarda o resultado da consulta', () => {
+    const toolDone = HAPPY.findIndex((e) => e.type === 'tool.finished') + 1
+    const state = replay(HAPPY.slice(0, toolDone))
+
+    expect(state.tool).toEqual(TOOL)
+    expect(state.nodes.tool).toBe('running')
+  })
+
+  it('node.finished de decisão guarda as respostas do primário', () => {
+    const state = replay(HAPPY.slice(0, 5))
+
+    expect(state.answers.guardrail).toEqual(SAFE)
+  })
+
+  it('pergunta bloqueada: guardrail bloqueado, demais puladas e o motivo', () => {
+    const state = replay(BLOCKED)
 
     expect(state.nodes).toEqual({
       guardrail: 'blocked',
       triage: 'skipped',
+      tool: 'skipped',
       reply: 'skipped',
       verify: 'skipped',
       act: 'skipped',
     })
     expect(state.action).toBe('blocked')
+    expect(state.reason).toMatch(/manipular/)
   })
 
-  it('node em andamento fica rodando e os resultados chegam um a um', () => {
-    const state = replay([
-      { type: 'run.started', run_id: RUN, node: null, data: {} },
-      { type: 'node.started', run_id: RUN, node: 'guardrail', data: {} },
-      {
-        type: 'provider.finished',
-        run_id: RUN,
-        node: 'guardrail',
-        data: metric('guardrail', 'jev'),
-      },
-    ])
+  it('etapa em andamento fica rodando e os resultados chegam um a um', () => {
+    const state = replay(HAPPY.slice(0, 3))
 
     expect(state.status).toBe('running')
     expect(state.nodes.guardrail).toBe('running')
     expect(state.nodes.triage).toBe('waiting')
     expect(state.outcomes.guardrail.map((o) => o.provider)).toEqual(['jev'])
+    expect(currentNode(state)).toBe('guardrail')
   })
 
   it('run.started de uma nova execução limpa a anterior', () => {
-    const first = replay([
-      { type: 'run.started', run_id: RUN, node: null, data: {} },
-      ...nodeEvents('guardrail', ['jev']),
-    ])
+    const first = replay([HAPPY[0], ...decision('guardrail', SAFE)])
 
-    const second = reduceRun(first, {
-      type: 'run.started',
-      run_id: 'r2',
-      node: null,
-      data: {},
-    })
+    const second = reduceRun(first, { type: 'run.started', run_id: 'r2', node: null, data: {} })
 
     expect(second.runId).toBe('r2')
     expect(second.outcomes.guardrail).toEqual([])
@@ -135,8 +66,18 @@ describe('reduceRun', () => {
   })
 })
 
-describe('takenEdges', () => {
-  it('liga os nodes consecutivos do caminho', () => {
-    expect(takenEdges(['guardrail', 'triage', 'act'])).toEqual(['guardrail-triage', 'triage-act'])
+describe('failRun', () => {
+  it('conexão caída encerra a execução em andamento com a mensagem', () => {
+    const state = failRun(replay(HAPPY.slice(0, 3)), 'caiu')
+
+    expect(state).toMatchObject({ status: 'failed', error: 'caiu' })
+  })
+
+  it('não mexe em execução já terminada', () => {
+    const finished = replay(HAPPY)
+
+    expect(failRun(finished, 'caiu')).toBe(finished)
+    expect(failRun(initialRunState(), 'caiu').status).toBe('idle')
+    expect(RUN).toBe('r1')
   })
 })

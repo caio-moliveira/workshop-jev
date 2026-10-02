@@ -10,31 +10,50 @@ export const QUESTIONS: Record<
   { name: string; type: QuestionType; label: string }[]
 > = {
   guardrail: [
-    { name: 'injection', type: 'noul', label: 'Prompt injection' },
-    { name: 'dado_sensivel', type: 'noul', label: 'Dado sensível' },
-    { name: 'fora_escopo', type: 'noul', label: 'Fora do escopo' },
+    { name: 'injection', type: 'noul', label: 'Tentativa de manipulação' },
+    { name: 'dado_sensivel', type: 'noul', label: 'Dado pessoal sensível' },
+    { name: 'fora_escopo', type: 'noul', label: 'Fora do escopo de vendas' },
   ],
-  triage: [
-    { name: 'fila', type: 'choice', label: 'Fila' },
-    { name: 'urgencia', type: 'score', label: 'Urgência' },
-    { name: 'pede_reembolso', type: 'noul', label: 'Pede reembolso' },
-    { name: 'risco_churn', type: 'noul', label: 'Risco de cancelamento' },
-  ],
+  triage: [{ name: 'tool', type: 'choice', label: 'Consulta escolhida' }],
   verify: [
-    { name: 'segue_politica', type: 'noul', label: 'Segue a política' },
-    { name: 'responde_pedido', type: 'noul', label: 'Responde ao pedido' },
-    { name: 'promete_fora', type: 'noul', label: 'Promete fora da política' },
+    { name: 'fiel_aos_dados', type: 'noul', label: 'Fiel aos dados' },
+    { name: 'responde_pergunta', type: 'noul', label: 'Responde à pergunta' },
+    { name: 'inventa_numero', type: 'noul', label: 'Inventa número' },
   ],
 }
 
-export const URGENCY_LABELS = ['pode esperar', 'esta semana', 'hoje']
+// Espelho de TOOLS em backend/app/tools.py: só o título, para a tela. A descrição completa
+// vem de GET /tools.
+export const TOOL_LABELS: Record<string, string> = {
+  vendas_mensal: 'Vendas por mês',
+  vendas_por_categoria: 'Vendas por categoria',
+  top_produtos: 'Produtos mais vendidos',
+  vendas_por_vendedor: 'Vendas por vendedor',
+  vendas_por_regiao: 'Vendas por região',
+  top_clientes: 'Maiores clientes',
+  kpis: 'Indicadores gerais',
+  nenhuma: 'Nenhuma consulta',
+}
+
+export const toolLabel = (name: string) => TOOL_LABELS[name] ?? name
 
 export const NODE_LABELS: Record<NodeName, string> = {
   guardrail: 'Guardrail',
   triage: 'Triagem',
+  tool: 'Consulta',
   reply: 'Resposta',
   verify: 'Verificação',
   act: 'Ação',
+}
+
+/** O que cada etapa faz, numa frase, para quem vê o fluxo pela primeira vez. */
+export const NODE_HINTS: Record<NodeName, string> = {
+  guardrail: 'Checa se a pergunta é segura e sobre vendas',
+  triage: 'Escolhe a consulta que responde à pergunta',
+  tool: 'Lê a view do banco escolhida pela triagem',
+  reply: 'O LLM escreve a resposta com os dados',
+  verify: 'Confere se a resposta é fiel aos dados',
+  act: 'Libera a resposta ou manda para revisão',
 }
 
 export const DECISION_NODES: DecisionNode[] = ['guardrail', 'triage', 'verify']

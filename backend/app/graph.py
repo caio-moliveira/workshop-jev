@@ -220,7 +220,7 @@ def build_graph(config: GraphConfig, providers: Providers, emit: Callable):
             update = {spec.name: answers, "metrics": metrics, "path": [spec.name], "errors": errors}
             if spec.name == "guardrail" and answers and (risks := blocked_by(answers, config)):
                 reasons = ", ".join(GUARDRAIL_REASONS[r] for r in risks)
-                update |= {"action": "blocked", "reason": f"bloqueada no guardrail: {reasons}"}
+                update |= {"action": "blocked", "reason": reasons}
             await emit("node.finished", spec.name, {"primary": primary, "answers": answers})
             return update
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 
 import { ProviderBars } from '../components/charts/ProviderBars'
+import { Badge, Button, Card, CardTitle, EmptyState, cx, type Tone } from '../components/ui'
 import { exportUrl, getBatchEstimate, getDataset, postBatch } from '../lib/api'
 import {
   accuracyByQuestion,
@@ -12,69 +13,86 @@ import {
   type RowFilter,
 } from '../lib/batch'
 import { formatMs, formatPercent, formatUsd } from '../lib/format'
+import { toolLabel } from '../lib/questions'
 import { subscribeBatch } from '../lib/sse'
-import type { BatchEstimate, BatchReport, GraphConfig, ProviderName } from '../lib/types'
+import type {
+  Action,
+  BatchEstimate,
+  BatchReport,
+  GraphConfig,
+  ProviderName,
+  Question,
+} from '../lib/types'
 
-const PROVIDERS: { id: ProviderName; label: string }[] = [
-  { id: 'jev', label: 'Jev' },
-  { id: 'llm', label: 'LLM' },
+const PROVIDERS: { id: ProviderName; label: string; dot: string }[] = [
+  { id: 'jev', label: 'Jev', dot: 'bg-jev' },
+  { id: 'llm', label: 'LLM', dot: 'bg-llm' },
 ]
 
-const ACTION_LABEL = { auto: 'automática', human: 'humano', blocked: 'bloqueado' }
+const ACTION: Record<Action, { label: string; tone: Tone }> = {
+  auto: { label: 'liberada', tone: 'ok' },
+  human: { label: 'revisão', tone: 'warn' },
+  blocked: { label: 'bloqueada', tone: 'danger' },
+}
 
 const FILTERS: { id: RowFilter; label: string }[] = [
-  { id: 'all', label: 'Todos' },
+  { id: 'all', label: 'Todas' },
   { id: 'disagree', label: 'Só discordâncias' },
   { id: 'errors', label: 'Só erros' },
 ]
 
+const MAX_BATCH = 100
+
 function mean(values: number[]): number | null {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
+}
+
+function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className={cx('font-semibold tabular-nums', strong ? 'text-2xl' : 'text-lg')}>{value}</dd>
+    </div>
+  )
 }
 
 function SummaryCards({ report }: { report: BatchReport }) {
   const agreement = mean(Object.values(report.agreement))
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {PROVIDERS.map(({ id, label }) => {
+      {PROVIDERS.map(({ id, label, dot }) => {
         const summary = report.by_provider[id]
         if (!summary) return null
+        const tool = report.by_question.tool?.[id]
         return (
-          <article key={id} className="rounded-lg border border-slate-200 bg-white p-4">
-            <h3 className="mb-3 font-semibold">
-              {label} <span className="text-xs font-normal text-slate-500">{summary.model}</span>
+          <Card key={id} className="p-4">
+            <h3 className="mb-3 flex items-center gap-2 font-semibold">
+              <span className={cx('size-2.5 rounded-full', dot)} aria-hidden="true" />
+              {label}
+              <span className="text-xs font-normal text-slate-500">{summary.model}</span>
+              {report.primary === id && <Badge tone="brand">primário</Badge>}
             </h3>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div>
-                <dt className="text-xs text-slate-500">Acurácia média</dt>
-                <dd className="text-xl font-semibold">
-                  {summary.accuracy == null ? '—' : formatPercent(summary.accuracy)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Custo total</dt>
-                <dd className="text-xl font-semibold">{formatUsd(summary.cost_total)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Por 1.000 tickets</dt>
-                <dd className="text-xl font-semibold">{formatUsd(summary.cost_per_1000)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-slate-500">Latência p95</dt>
-                <dd className="text-xl font-semibold">
-                  {summary.latency_p95 == null ? '—' : formatMs(summary.latency_p95)}
-                </dd>
-              </div>
+              <Stat
+                strong
+                label="Acerto da consulta"
+                value={tool?.accuracy == null ? '—' : formatPercent(tool.accuracy)}
+              />
+              <Stat label="Custo total" value={formatUsd(summary.cost_total)} />
+              <Stat label="Por 1.000 perguntas" value={formatUsd(summary.cost_per_1000)} />
+              <Stat
+                label="Latência p95"
+                value={summary.latency_p95 == null ? '—' : formatMs(summary.latency_p95)}
+              />
             </dl>
-          </article>
+          </Card>
         )
       })}
       <p className="text-sm text-slate-600 md:col-span-2">
-        {report.n} tickets · modo {report.mode} · primário{' '}
-        {report.primary === 'jev' ? 'Jev' : 'LLM'}
+        {report.n} perguntas · modo {report.mode}
         {agreement != null && <> · concordância média {formatPercent(agreement)}</>}
         {report.errors > 0 && <> · {report.errors} com erro de execução</>}
-        {' · '}custos sem o node de resposta, que é só LLM
+        {' · '}custos sem a etapa de resposta, que é só LLM
       </p>
     </div>
   )
@@ -82,13 +100,13 @@ function SummaryCards({ report }: { report: BatchReport }) {
 
 interface Props {
   config: GraphConfig
-  onOpenTicket: (ticketId: string) => void
+  onOpenQuestion: (questionId: string) => void
 }
 
-export function Batch({ config, onOpenTicket }: Props) {
-  const [n, setN] = useState(100)
+export function Batch({ config, onOpenQuestion }: Props) {
+  const [n, setN] = useState(MAX_BATCH)
   const [tag, setTag] = useState('')
-  const [tags, setTags] = useState<string[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
   const [estimate, setEstimate] = useState<BatchEstimate | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<RowFilter>('all')
@@ -97,7 +115,7 @@ export function Batch({ config, onOpenTicket }: Props) {
 
   useEffect(() => {
     getDataset()
-      .then((tickets) => setTags([...new Set(tickets.flatMap((t) => t.tags))].sort()))
+      .then(setQuestions)
       .catch((e: Error) => setError(e.message))
     return () => unsubscribe.current?.()
   }, [])
@@ -120,6 +138,8 @@ export function Batch({ config, onOpenTicket }: Props) {
     }
   }
 
+  const tags = useMemo(() => [...new Set(questions.flatMap((q) => q.tags))].sort(), [questions])
+  const texts = useMemo(() => new Map(questions.map((q) => [q.id, q.text])), [questions])
   const report = batch.report
   const charts = useMemo(
     () =>
@@ -130,22 +150,25 @@ export function Batch({ config, onOpenTicket }: Props) {
       },
     [report],
   )
-  const rows = report ? filterRows(report.tickets, filter) : []
+  const rows = report ? filterRows(report.questions, filter) : []
   const progress = batch.total ? batch.done / batch.total : 0
 
   return (
-    <div className="flex flex-col gap-5">
-      <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-5">
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardTitle hint="Roda várias perguntas do golden set e compara Jev e LLM em acerto, custo e latência.">
+          Lote
+        </CardTitle>
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            Tickets
+            Perguntas
             <input
               type="number"
               min={1}
-              max={330}
+              max={MAX_BATCH}
               value={n}
-              onChange={(e) => setN(Math.max(1, Math.min(330, Number(e.target.value))))}
-              className="w-24 rounded border border-slate-300 px-2 py-1"
+              onChange={(e) => setN(Math.max(1, Math.min(MAX_BATCH, Number(e.target.value))))}
+              className="w-24 rounded-lg border border-slate-300 px-3 py-2 tabular-nums"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -153,7 +176,7 @@ export function Batch({ config, onOpenTicket }: Props) {
             <select
               value={tag}
               onChange={(e) => setTag(e.target.value)}
-              className="rounded border border-slate-300 px-2 py-1"
+              className="rounded-lg border border-slate-300 px-3 py-2"
             >
               <option value="">todas</option>
               {tags.map((t) => (
@@ -163,43 +186,59 @@ export function Batch({ config, onOpenTicket }: Props) {
               ))}
             </select>
           </label>
-          <button
-            type="button"
+          <Button
             onClick={execute}
-            disabled={batch.status === 'running' || estimate?.n === 0}
-            className="rounded bg-indigo-600 px-4 py-1.5 font-medium text-white disabled:opacity-40"
+            disabled={estimate?.n === 0}
+            loading={batch.status === 'running'}
           >
-            {batch.status === 'running' ? 'Executando…' : 'Executar lote'}
-          </button>
-          {estimate && (
-            <span className="text-sm text-slate-600">
-              {estimate.n} tickets
-              {estimate.n < n && config.mode === 'replay' && ' (só os que têm gravação)'} · custo
-              estimado{' '}
-              {estimate.estimated_cost_usd == null
-                ? 'indisponível (falta preço ou gravação)'
-                : `até ${formatUsd(estimate.estimated_cost_usd)}`}
-              {config.mode === 'replay' && ', não cobrado em replay'}
-            </span>
-          )}
+            {batch.status === 'running' ? 'Executando' : 'Executar lote'}
+          </Button>
         </div>
+        {estimate && (
+          <p className="mt-3 text-sm text-slate-600">
+            {estimate.n} perguntas
+            {estimate.n < n && config.mode === 'replay' && ' (só as que têm gravação)'} · custo
+            estimado{' '}
+            {estimate.estimated_cost_usd == null
+              ? 'indisponível (falta preço ou gravação)'
+              : `até ${formatUsd(estimate.estimated_cost_usd)}`}
+            {config.mode === 'replay' && ', não cobrado em replay'}
+          </p>
+        )}
         {batch.status !== 'idle' && (
-          <div className="flex items-center gap-3">
+          <div className="mt-4 flex items-center gap-3">
             <div
-              className="h-2 flex-1 overflow-hidden rounded bg-slate-100"
+              className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"
               role="progressbar"
+              aria-label="Progresso do lote"
+              aria-valuemin={0}
               aria-valuenow={batch.done}
               aria-valuemax={batch.total}
             >
-              <div className="h-full bg-indigo-600" style={{ width: `${progress * 100}%` }} />
+              <div
+                className="bg-brand-600 h-full rounded-full transition-[width] motion-reduce:transition-none"
+                style={{ width: `${progress * 100}%` }}
+              />
             </div>
             <span className="text-sm text-slate-600 tabular-nums">
               {batch.done} / {batch.total}
             </span>
           </div>
         )}
-        {error && <p className="text-sm text-red-700">{error}</p>}
-      </section>
+        {error && (
+          <p role="alert" className="mt-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+      </Card>
+
+      {!report && batch.status === 'idle' && (
+        <Card>
+          <EmptyState title="Nenhum lote executado ainda">
+            Escolha quantas perguntas rodar e clique em Executar lote. O relatório aparece aqui.
+          </EmptyState>
+        </Card>
+      )}
 
       {report && charts && (
         <>
@@ -207,90 +246,136 @@ export function Batch({ config, onOpenTicket }: Props) {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <ProviderBars
-              title="Distribuição de latência por chamada de decisão"
+              title="Acerto por pergunta (%)"
+              data={charts.accuracy}
+              category="question"
+              format={(v) => `${v}%`}
+            />
+            <ProviderBars
+              title="Latência por chamada de decisão"
               data={charts.latency}
               category="label"
               format={(v) => String(v)}
               yLabel="chamadas"
             />
             <ProviderBars
-              title="Custo por node (US$)"
+              title="Custo por etapa (US$)"
               data={charts.cost}
               category="node"
               format={formatUsd}
             />
-            <ProviderBars
-              title="Acurácia por pergunta (%)"
-              data={charts.accuracy}
-              category="question"
-              format={(v) => `${v}%`}
-            />
           </div>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <Card className="p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              {FILTERS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setFilter(id)}
-                  className={`rounded px-3 py-1 text-sm ${
-                    filter === id ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              <span className="text-sm text-slate-500">{rows.length} tickets</span>
+              <div role="group" aria-label="Filtro" className="flex rounded-lg bg-slate-100 p-1">
+                {FILTERS.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={filter === id}
+                    onClick={() => setFilter(id)}
+                    className={cx(
+                      'rounded-md px-3 py-1 text-sm font-medium',
+                      filter === id
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-sm text-slate-500">{rows.length} perguntas</span>
               <span className="ml-auto flex gap-2">
                 {(['csv', 'json'] as const).map((format) => (
                   <a
                     key={format}
                     href={exportUrl(report.batch_id, format)}
                     download
-                    className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
                   >
                     Exportar {format.toUpperCase()}
                   </a>
                 ))}
               </span>
             </div>
-            <div className="max-h-96 overflow-auto">
+            <div className="max-h-[28rem] overflow-auto rounded-lg border border-slate-200">
               <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 bg-white text-xs text-slate-500">
+                <caption className="sr-only">
+                  Perguntas do lote. Clique numa pergunta para abri-la no Playground.
+                </caption>
+                <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
                   <tr>
-                    <th className="py-1 pr-3">Ticket</th>
-                    <th className="pr-3">Fila (gabarito)</th>
-                    <th className="pr-3">Jev</th>
-                    <th className="pr-3">LLM</th>
-                    <th className="pr-3">Ação</th>
-                    <th>Tags</th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      Pergunta
+                    </th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      Consulta esperada
+                    </th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      Jev
+                    </th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      LLM
+                    </th>
+                    <th scope="col" className="px-3 py-2 font-medium">
+                      Resultado
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr
-                      key={row.ticket_id}
-                      onClick={() => onOpenTicket(row.ticket_id)}
-                      className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="py-1 pr-3 font-mono text-xs">{row.ticket_id}</td>
-                      <td className="pr-3">{String(row.labels.fila ?? '—')}</td>
-                      <td className="pr-3">{String(row.answers.fila?.jev ?? '—')}</td>
-                      <td className="pr-3">{String(row.answers.fila?.llm ?? '—')}</td>
-                      <td className="pr-3">
-                        {row.action ? ACTION_LABEL[row.action] : '—'}
-                        {row.disagrees && <span className="ml-1 text-amber-700">· discorda</span>}
-                        {row.wrong && <span className="ml-1 text-red-700">· errou</span>}
-                        {row.has_error && <span className="ml-1 text-red-700">· falha</span>}
-                      </td>
-                      <td className="text-xs text-slate-500">{row.tags.join(', ')}</td>
-                    </tr>
-                  ))}
+                  {rows.map((row) => {
+                    const label = row.labels.tool
+                    const cell = (provider: ProviderName) => {
+                      const value = row.answers.tool?.[provider]
+                      if (value == null) return <span className="text-slate-400">—</span>
+                      const hit = label !== undefined && value === label
+                      return (
+                        <span className={hit ? 'text-slate-700' : 'font-medium text-red-700'}>
+                          {toolLabel(String(value))}
+                        </span>
+                      )
+                    }
+                    return (
+                      <tr
+                        key={row.question_id}
+                        className="border-t border-slate-100 hover:bg-slate-50"
+                      >
+                        <td className="max-w-xs px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => onOpenQuestion(row.question_id)}
+                            className="text-brand-700 block w-full truncate text-left hover:underline"
+                            title={`Abrir ${row.question_id} no Playground`}
+                          >
+                            {texts.get(row.question_id) ?? row.question_id}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-slate-600">
+                          {label === undefined ? '—' : toolLabel(String(label))}
+                        </td>
+                        <td className="px-3 py-2">{cell('jev')}</td>
+                        <td className="px-3 py-2">{cell('llm')}</td>
+                        <td className="px-3 py-2">
+                          <span className="flex flex-wrap gap-1">
+                            {row.action && (
+                              <Badge tone={ACTION[row.action].tone}>
+                                {ACTION[row.action].label}
+                              </Badge>
+                            )}
+                            {row.disagrees && <Badge tone="warn">discordam</Badge>}
+                            {row.wrong && <Badge tone="danger">errou</Badge>}
+                            {row.has_error && <Badge tone="danger">falha</Badge>}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          </section>
+          </Card>
         </>
       )}
     </div>

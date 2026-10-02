@@ -1,5 +1,5 @@
 import { NODE_LABELS, QUESTIONS } from './questions'
-import type { BatchEvent, BatchReport, NodeName, ProviderName, TicketRow } from './types'
+import type { BatchEvent, BatchReport, NodeName, ProviderName, QuestionRow } from './types'
 
 export interface BatchViewState {
   batchId: string | null
@@ -91,7 +91,7 @@ export function accuracyByQuestion(report: BatchReport) {
 
 export type RowFilter = 'all' | 'disagree' | 'errors'
 
-export function filterRows(rows: TicketRow[], filter: RowFilter): TicketRow[] {
+export function filterRows(rows: QuestionRow[], filter: RowFilter): QuestionRow[] {
   if (filter === 'disagree') return rows.filter((r) => r.disagrees)
   if (filter === 'errors') return rows.filter((r) => r.wrong || r.has_error)
   return rows

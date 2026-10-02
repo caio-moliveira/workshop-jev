@@ -11,8 +11,8 @@ const answer = (value: string | number, confidence: number | null = null): Answe
 
 describe('disagrees', () => {
   it('choice diferente discorda', () => {
-    expect(disagrees('choice', answer('financeiro'), answer('pedidos'))).toBe(true)
-    expect(disagrees('choice', answer('financeiro'), answer('financeiro'))).toBe(false)
+    expect(disagrees('choice', answer('kpis'), answer('vendas_mensal'))).toBe(true)
+    expect(disagrees('choice', answer('kpis'), answer('kpis'))).toBe(false)
   })
 
   it('score com nível diferente discorda', () => {
@@ -45,24 +45,27 @@ const metric = (provider: 'jev' | 'llm', answers: Record<string, Answer>): NodeM
 describe('disagreements', () => {
   it('lista as perguntas do node em que os dois providers discordam', () => {
     const jev = metric('jev', {
-      fila: answer('financeiro'),
-      urgencia: answer(2),
-      pede_reembolso: answer(0.9),
-      risco_churn: answer(0.1),
+      fiel_aos_dados: answer(0.9),
+      responde_pergunta: answer(0.9),
+      inventa_numero: answer(0.1),
     })
     const llm = metric('llm', {
-      fila: answer('pedidos'),
-      urgencia: answer(2),
-      pede_reembolso: answer(0.8),
-      risco_churn: answer(0.6),
+      fiel_aos_dados: answer(0.8),
+      responde_pergunta: answer(0.9),
+      inventa_numero: answer(0.6),
     })
 
-    expect(disagreements('triage', [jev, llm])).toEqual(new Set(['fila', 'risco_churn']))
+    expect(disagreements('verify', [jev, llm])).toEqual(new Set(['inventa_numero']))
+  })
+
+  it('a tool escolhida discorda quando Jev e LLM escolhem consultas diferentes', () => {
+    const jev = metric('jev', { tool: answer('kpis', 0.86) })
+    const llm = metric('llm', { tool: answer('vendas_por_vendedor', 0.72) })
+
+    expect(disagreements('triage', [jev, llm])).toEqual(new Set(['tool']))
   })
 
   it('com um provider só não há discordância', () => {
-    expect(disagreements('triage', [metric('jev', { fila: answer('financeiro') })])).toEqual(
-      new Set(),
-    )
+    expect(disagreements('triage', [metric('jev', { tool: answer('kpis') })])).toEqual(new Set())
   })
 })
