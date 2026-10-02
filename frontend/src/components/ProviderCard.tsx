@@ -52,7 +52,12 @@ export function ProviderCard({ node, outcome, disagreements }: Props) {
           <span className="text-xs font-normal text-slate-500">{outcome.model}</span>
         )}
       </h3>
-      {outcome.is_primary && <Badge tone="brand">primário</Badge>}
+      <span className="flex gap-1">
+        {!isError(outcome) && outcome.raw.prompt_style === 'native' && (
+          <Badge tone="llm">system prompt</Badge>
+        )}
+        {outcome.is_primary && <Badge tone="brand">primário</Badge>}
+      </span>
     </div>
   )
 

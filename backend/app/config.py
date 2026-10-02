@@ -11,6 +11,8 @@ CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 
 DecisionNode = Literal["guardrail", "triage", "verify"]
 ProviderName = Literal["jev", "llm"]
+# spec: o LLM recebe o NodeSpec, como o Jev. native: system prompt por etapa (SPEC-12).
+PromptStyle = Literal["spec", "native"]
 Probability = Field(ge=0, le=1)
 
 
@@ -32,6 +34,7 @@ class GraphConfig(BaseModel):
     mode: Literal["replay", "live"]
     primary: ProviderName
     llm_model: str
+    llm_prompt_style: PromptStyle = "spec"
     providers: dict[DecisionNode, Literal["llm", "jev", "both"]]
     llm_model_overrides: dict[DecisionNode, str] = {}
     thresholds: Thresholds

@@ -18,6 +18,7 @@ O PRD (`docs/PRD.md`) diz o que o projeto é. Uma SPEC diz o que uma fatia dele 
 | 9 | [SPEC-09](SPEC-09-agente-vendas.md) | Troca de domínio do backend: grafo com `tool`, golden set, replay, métricas, API | 08 | concluída, falta gravar o replay real |
 | 10 | [SPEC-10](SPEC-10-frontend-vendas.md) | Frontend de vendas e redesign | 09 | concluída |
 | 11 | [SPEC-11](SPEC-11-lado-a-lado.md) | Jev × LLM lado a lado no Playground | 10 | concluída |
+| 12 | [SPEC-12](SPEC-12-system-prompts.md) | System prompt por etapa para o LLM | 11 | concluída, falta gravar o replay native |
 
 A SPEC-06 vem antes da 01 porque tudo o mais é testado contra o golden set e roda em replay.
 
@@ -78,6 +79,7 @@ Antes de escrever código de uma SPEC, carregar as skills da linha dela. As skil
 | 09 | `langgraph-fundamentals`, `fastapi`, `tdd` | `python-master` |
 | 10 | `tdd` | `react-master`, `tailwindcss-master` (`tailwindcss-fundamentals-v4`, `tailwindcss-accessibility`) |
 | 11 | `fastapi`, `tdd` | `react-master`, `tailwindcss-master` |
+| 12 | `langchain-fundamentals`, `tdd` | `python-master`, `react-master` |
 
 Onde uma skill ou plugin contradiz o PRD, o PRD vence:
 

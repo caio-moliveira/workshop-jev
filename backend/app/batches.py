@@ -14,7 +14,7 @@ from app.dataset import Question, load_golden_set
 from app.graph import Providers, RunResult, run_question
 from app.metrics.aggregator import QUESTIONS, BatchReport, aggregate, is_correct, label_of
 from app.metrics.pricing import Pricing
-from app.providers.replay import FIXTURES_DIR, has_fixture
+from app.providers.replay import FIXTURES_DIR, has_fixture, llm_fixture_dir
 from app.runs import EventChannel
 from app.store import RunStore
 
@@ -33,7 +33,8 @@ def select_questions(
     """Em replay, só as perguntas que têm gravação."""
     questions = load_golden_set(tag=tag)
     if config.mode == "replay":
-        questions = [q for q in questions if has_fixture(q.id, fixtures_dir)]
+        style = config.llm_prompt_style
+        questions = [q for q in questions if has_fixture(q.id, fixtures_dir, style)]
     return questions[:n]
 
 
@@ -44,11 +45,14 @@ def estimate_cost(
     gravações e os preços atuais. None se não há gravação ou falta preço de algum modelo."""
     tokens: dict[tuple[str, str], list[tuple[int, int]]] = {}
     # Só as gravações dos providers: fixtures_dir/tools/ guarda resultados de tools.
-    paths = [p for source in ("jev", "llm") for p in (fixtures_dir / source).glob("*.json")]
-    for path in paths:
+    dirs = {"jev": "jev", "llm": llm_fixture_dir(config.llm_prompt_style)}
+    paths = [
+        (p, provider) for provider, d in dirs.items() for p in (fixtures_dir / d).glob("*.json")
+    ]
+    for path, provider in paths:
         fixture = json.loads(path.read_text(encoding="utf-8"))
         for node, result in fixture["nodes"].items():
-            tokens.setdefault((node, path.parent.name), []).append(
+            tokens.setdefault((node, provider), []).append(
                 (result["tokens_in"], result["tokens_out"])
             )
         if reply := fixture.get("reply"):

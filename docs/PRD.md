@@ -172,6 +172,7 @@ class NodeSpec(BaseModel):
 
 - `JevProvider` converte o `NodeSpec` diretamente no corpo da chamada `system_one` (state + questions).
 - `LLMProvider` converte o mesmo `NodeSpec` em um prompt com as mesmas instruções e critérios, mais um JSON Schema gerado por pydantic. Usa structured output quando o provedor suporta; registra falha de parsing quando não vem JSON válido. Pede também um campo `confidence` de 0 a 1 por pergunta, para a comparação com a confiança calibrada do Jev.
+- Modo `native` (SPEC-12, escolhido na Configuração): o `LLMProvider` troca o texto gerado do `NodeSpec` por um system prompt escrito para a etapa (`backend/config/prompts/`), como se faz em produção. O schema de saída não muda. Serve para medir o Jev contra um LLM bem instruído.
 - `ReplayProvider` lê de `fixtures/replay/<provider>/<question_id>.json` e reproduz resposta e latência gravadas.
 
 ### 7.3 Interface do provider

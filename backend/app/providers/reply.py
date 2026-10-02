@@ -63,13 +63,19 @@ class LLMReplyWriter:
 
 
 class ReplayReplyWriter:
-    def __init__(self, simulate_latency: bool = True, fixtures_dir: Path = FIXTURES_DIR):
+    def __init__(
+        self,
+        simulate_latency: bool = True,
+        fixtures_dir: Path = FIXTURES_DIR,
+        directory: str = "llm",
+    ):
         self.simulate_latency = simulate_latency
         self.fixtures_dir = fixtures_dir
+        self.directory = directory
 
     async def write(self, payload: dict) -> ReplyResult:
         question_id = payload["question_id"]
-        path = self.fixtures_dir / "llm" / f"{question_id}.json"
+        path = self.fixtures_dir / self.directory / f"{question_id}.json"
         recorded = load_fixture(path).get("reply") if path.exists() else None
         if recorded is None:
             raise ReplayMissError(f"sem gravação de reply para a pergunta {question_id}")

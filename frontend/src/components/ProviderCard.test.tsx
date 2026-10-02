@@ -95,6 +95,24 @@ describe('ProviderCard', () => {
     expect(screen.getByText('Jev e LLM discordam')).toBeTruthy()
   })
 
+  it('marca quando o LLM respondeu com system prompt próprio', () => {
+    render(
+      <ProviderCard
+        node="triage"
+        outcome={metric({ provider: 'llm', raw: { prompt_style: 'native' } })}
+        disagreements={new Set()}
+      />,
+    )
+
+    expect(screen.getByText('system prompt')).toBeTruthy()
+  })
+
+  it('no modo spec não há a marca', () => {
+    render(<ProviderCard node="triage" outcome={metric()} disagreements={new Set()} />)
+
+    expect(screen.queryByText('system prompt')).toBeNull()
+  })
+
   it('mostra o erro quando o provider falhou', () => {
     render(
       <ProviderCard

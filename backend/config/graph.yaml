@@ -5,6 +5,7 @@ config_version: "2"
 mode: replay # replay | live; a variável PROVIDER_MODE sobrescreve
 primary: jev # jev | llm
 llm_model: "openai:gpt-5.6-luna"
+llm_prompt_style: spec # spec: mesmas perguntas do Jev | native: system prompt por etapa
 
 providers: # por node de decisão: llm | jev | both
   guardrail: both

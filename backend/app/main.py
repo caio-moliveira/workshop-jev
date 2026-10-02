@@ -16,6 +16,7 @@ from app.dataset import Question, QuestionInput, load_golden_set
 from app.graph import RunResult, build_providers, new_run_id, run_question
 from app.metrics.aggregator import BatchReport
 from app.metrics.pricing import Pricing, load_pricing
+from app.prompts import load_prompts
 from app.providers.replay import FIXTURES_DIR, has_fixture
 from app.runs import EventChannel, Registry
 from app.store import RUNS_DIR, RunStore
@@ -138,6 +139,11 @@ def create_app(
     def get_tools() -> list[Tool]:
         return list(TOOLS.values())
 
+    @app.get("/prompts")
+    def get_prompts() -> dict[str, str]:
+        """Os system prompts do LLM no modo native, já com a lista de tools."""
+        return load_prompts()
+
     @app.get("/dataset")
     def get_dataset(
         state: StateDep,
@@ -145,7 +151,10 @@ def create_app(
         limit: Annotated[int | None, Query(ge=1)] = None,
     ) -> list[DatasetQuestion]:
         return [
-            DatasetQuestion(**q.model_dump(), replayable=has_fixture(q.id, state.fixtures_dir))
+            DatasetQuestion(
+                **q.model_dump(),
+                replayable=has_fixture(q.id, state.fixtures_dir, state.config.llm_prompt_style),
+            )
             for q in load_golden_set(tag=tag, limit=limit)
         ]
 
@@ -163,7 +172,8 @@ def create_app(
             question = next((q for q in load_golden_set() if q.id == request.question_id), None)
             if question is None:
                 raise HTTPException(404, f"pergunta {request.question_id} não está no golden set")
-            if config.mode == "replay" and not has_fixture(question.id, state.fixtures_dir):
+            replayable = has_fixture(question.id, state.fixtures_dir, config.llm_prompt_style)
+            if config.mode == "replay" and not replayable:
                 raise HTTPException(422, f"sem gravação de replay para {question.id}")
 
         channel = state.runs.open(run_id)
