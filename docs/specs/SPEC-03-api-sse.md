@@ -1,4 +1,4 @@
-Status: concluída
+Status: concluída; domínio substituído pela SPEC-09
 
 # SPEC-03: API e SSE
 

@@ -13,8 +13,14 @@ O PRD (`docs/PRD.md`) diz o que o projeto é. Uma SPEC diz o que uma fatia dele 
 | 4 | [SPEC-03](SPEC-03-api-sse.md) | API de um ticket, SSE, store JSONL | 02 | concluída (#5) |
 | 5 | [SPEC-04](SPEC-04-frontend-config-playground.md) | Telas de Configuração e Playground | 03 | concluída (#6) |
 | 6 | [SPEC-05](SPEC-05-batch-dashboard.md) | Lote, métricas agregadas, exportação, Dashboard | 03, 04 | concluída (#7) |
+| 7 | [SPEC-07](SPEC-07-banco-vendas.md) | Postgres em Docker: tabelas, seed e views de vendas | 00 | aceita |
+| 8 | [SPEC-08](SPEC-08-tools.md) | Tools sobre as views, replay das tools, `GET /tools` | 07 | aceita |
+| 9 | [SPEC-09](SPEC-09-agente-vendas.md) | Troca de domínio do backend: grafo com `tool`, golden set, replay, métricas, API | 08 | aceita |
+| 10 | [SPEC-10](SPEC-10-frontend-vendas.md) | Frontend de vendas e redesign | 09 | aceita |
 
 A SPEC-06 vem antes da 01 porque tudo o mais é testado contra o golden set e roda em replay.
+
+Em 02/10 o caso de uso mudou de triagem de tickets para agente de vendas (PRD 1 e 5). As SPECs 07 a 10 fazem a troca; as partes de domínio das SPECs 01 a 06 valem só como histórico, e a mecânica que elas descrevem (providers, modo `both`, replay, SSE, lote) continua.
 
 ## Formato
 
@@ -33,6 +39,7 @@ O status fica na primeira linha da SPEC:
 - `rascunho`: ainda em discussão. Não implementar.
 - `aceita`: revisada por uma pessoa. Pode ser implementada.
 - `concluída`: todos os critérios de aceite passam na `main`.
+- `concluída; ... substituído pela SPEC-xx`: entregue, mas parte do que ela define foi trocada por outra SPEC.
 
 Uma SPEC vira uma ou mais branches (`feat/spec-01-jev-provider`). O título do PR referencia a SPEC: `feat(providers): JevProvider (SPEC-01)`. Se a implementação mudar uma interface, a SPEC e o `CLAUDE.md` são atualizados no mesmo PR.
 
@@ -45,13 +52,12 @@ Os nomes das perguntas são o contrato entre golden set, `NodeSpec`s, fixtures, 
 | `guardrail` | `injection` | noul | probabilidade |
 | `guardrail` | `dado_sensivel` | noul | probabilidade |
 | `guardrail` | `fora_escopo` | noul | probabilidade |
-| `triage` | `fila` | choice | `financeiro`, `pedidos`, `conta`, `outro` |
-| `triage` | `urgencia` | score | `0` pode esperar, `1` esta semana, `2` hoje |
-| `triage` | `pede_reembolso` | noul | probabilidade |
-| `triage` | `risco_churn` | noul | probabilidade |
-| `verify` | `segue_politica` | noul | probabilidade |
-| `verify` | `responde_pedido` | noul | probabilidade |
-| `verify` | `promete_fora` | noul | probabilidade |
+| `triage` | `tool` | choice | `vendas_mensal`, `vendas_por_categoria`, `top_produtos`, `vendas_por_vendedor`, `vendas_por_regiao`, `top_clientes`, `kpis`, `nenhuma` |
+| `verify` | `fiel_aos_dados` | noul | probabilidade |
+| `verify` | `responde_pergunta` | noul | probabilidade |
+| `verify` | `inventa_numero` | noul | probabilidade |
+
+As tools e suas views ficam em `backend/app/tools.py` (SPEC-08) e as views em `db/init/03_views.sql` (SPEC-07).
 
 ## Skills e plugins por SPEC
 
@@ -66,6 +72,10 @@ Antes de escrever código de uma SPEC, carregar as skills da linha dela. As skil
 | 03 | `fastapi` (SSE), `tdd` | `python-master` |
 | 04 | `tdd` | `react-master`, `tailwindcss-master` |
 | 05 | `fastapi`, `tdd` | `python-master`, `react-master`, `tailwindcss-master` |
+| 07 | `tdd` | `python-master` |
+| 08 | `fastapi`, `tdd` | `python-master` |
+| 09 | `langgraph-fundamentals`, `fastapi`, `tdd` | `python-master` |
+| 10 | `tdd` | `react-master`, `tailwindcss-master` (`tailwindcss-fundamentals-v4`, `tailwindcss-accessibility`) |
 
 Onde uma skill ou plugin contradiz o PRD, o PRD vence:
 

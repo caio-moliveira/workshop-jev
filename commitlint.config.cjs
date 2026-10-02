@@ -9,6 +9,6 @@ module.exports = {
     // Escopo é opcional (`chore: passo 0, ...` é válido), mas quando existe
     // tem que ser um dos escopos do PRD.
     'scope-enum': [2, 'always',
-      ['backend', 'frontend', 'graph', 'providers', 'data', 'config', 'docs']],
+      ['backend', 'frontend', 'graph', 'providers', 'data', 'config', 'docs', 'db']],
   },
 };

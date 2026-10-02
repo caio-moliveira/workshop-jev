@@ -1,4 +1,4 @@
-Status: concluída
+Status: concluída; domínio e visual substituídos pela SPEC-10
 
 # SPEC-04: Frontend, Configuração e Playground
 

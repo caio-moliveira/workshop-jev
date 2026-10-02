@@ -1,4 +1,4 @@
-Status: concluída
+Status: concluída; domínio substituído pela SPEC-09 (NodeSpecs) e SPEC-08 (tools)
 
 # SPEC-01: Providers
 

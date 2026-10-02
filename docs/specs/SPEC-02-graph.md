@@ -1,4 +1,4 @@
-Status: concluída (falta gravar o replay real)
+Status: concluída; domínio substituído pela SPEC-09
 
 # SPEC-02: Grafo
 

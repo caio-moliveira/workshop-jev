@@ -1,18 +1,18 @@
 # PRD: JEV Jornada
 
 Workshop Jornada de Dados, sábado 3 de outubro de 2026
-Versão 0.4, 1 de outubro de 2026
+Versão 0.5, 2 de outubro de 2026
 Status: rascunho para revisão
 
 ---
 
 ## 1. Resumo
 
-Um pipeline de triagem de tickets de suporte construído em LangGraph, onde cada node de decisão pode rodar com um LLM convencional, com o Jev, ou com os dois ao mesmo tempo. Um frontend React mostra, lado a lado, o que cada modelo respondeu, quanto tempo levou, quantos tokens consumiu e quanto custou, tanto para um ticket quanto para um lote de centenas.
+Um agente de vendas construído em LangGraph que responde perguntas sobre os dados de vendas de uma empresa fictícia. Ele escolhe uma tool que lê uma view analítica do Postgres, redige a resposta com os dados e a verifica antes de entregar. Cada node de decisão pode rodar com um LLM convencional, com o Jev, ou com os dois ao mesmo tempo. Um frontend React mostra o que aconteceu em cada etapa e, lado a lado, o que cada modelo respondeu, quanto tempo levou, quantos tokens consumiu e quanto custou, tanto para uma pergunta quanto para um lote.
 
 O projeto serve a dois propósitos: ser o exercício prático de um workshop de 2 horas e ficar no GitHub como ferramenta reutilizável para quem quiser medir, no próprio caso, onde o Jev substitui um LLM e onde não.
 
-**Premissa deste documento:** o caso de uso é a triagem de tickets de suporte (fila, urgência, pedido de reembolso, risco de cancelamento), com guardrail na entrada e verificação da resposta na saída, conforme definido na live de 29/09. Se o caso mudar, as seções 5, 8 e 11 precisam ser revistas.
+**Premissa deste documento:** o caso de uso é o agente de vendas (guardrail, escolha da tool, consulta, resposta, verificação e ação). Até a versão 0.4 o caso era a triagem de tickets de suporte; a troca foi decidida em 02/10 e está detalhada nas SPECs 07 a 10, que substituem as partes de domínio das SPECs 01 a 06.
 
 ---
 
@@ -45,31 +45,51 @@ Fora dos objetivos: provar que o Jev é melhor. O projeto mede; a conclusão é 
 
 ---
 
-## 5. O caso de uso: triagem de tickets
+## 5. O caso de uso: agente de vendas
 
-Fluxo de um ticket de suporte, do recebimento à ação:
+Fluxo de uma pergunta sobre vendas, do recebimento à ação:
 
 ```mermaid
 flowchart LR
-    IN[Ticket] --> G[guardrail\ndecisão]
+    IN[Pergunta] --> G[guardrail\ndecisão]
     G -- bloqueado --> END1[Bloqueado]
-    G -- ok --> T[triage\ndecisão]
-    T -- confiança baixa --> H[Revisão humana]
-    T -- confiança ok --> R[reply\ngeração, só LLM]
+    G -- ok --> T[triage\ndecisão: qual tool]
+    T -- confiança baixa ou nenhuma tool --> H[Revisão humana]
+    T -- tool escolhida --> X[tool\nconsulta à view]
+    X --> R[reply\ngeração, só LLM]
     R --> V[verify\ndecisão]
     V -- reprovado --> H
-    V -- aprovado --> A[Ação automática]
+    V -- aprovado --> A[Resposta liberada]
 ```
 
 | Node | Tipo | Perguntas | Provider |
 |---|---|---|---|
-| `guardrail` | decisão | noul: tentativa de prompt injection? contém dado pessoal sensível? fora do escopo do suporte? | LLM, Jev ou ambos |
-| `triage` | decisão | choice: fila (financeiro, pedidos, conta, outro); score: urgência (pode esperar, esta semana, hoje); noul: pede reembolso?; noul: ameaça cancelar? | LLM, Jev ou ambos |
-| `reply` | geração | rascunho de resposta ao cliente, com base na triagem e na política | somente LLM |
-| `verify` | decisão | noul: a resposta segue a política de reembolso?; noul: responde ao que o cliente pediu?; noul: promete algo que a política não cobre? | LLM, Jev ou ambos |
-| `act` | determinístico | decide entre ação automática, revisão humana ou escalada, pelos limiares de confiança | código |
+| `guardrail` | decisão | noul: tentativa de prompt injection? pede ou contém dado pessoal sensível? fora do escopo de vendas da empresa? | LLM, Jev ou ambos |
+| `triage` | decisão | choice: qual tool responde a pergunta (uma por view, mais `nenhuma`) | LLM, Jev ou ambos |
+| `tool` | determinístico | executa a tool escolhida pelo primário: `SELECT` na view do registro | código |
+| `reply` | geração | resposta em português, só com os dados que a tool devolveu | somente LLM |
+| `verify` | decisão | noul: a resposta é fiel aos dados?; noul: responde à pergunta?; noul: cita número que não está nos dados? | LLM, Jev ou ambos |
+| `act` | determinístico | decide entre resposta liberada, revisão humana ou bloqueio, pelos limiares de confiança | código |
 
-O node `reply` existe de propósito: é onde o LLM é insubstituível, e deixa claro que o Jev não compete com ele ali.
+O node `reply` existe de propósito: é onde o LLM é insubstituível, e deixa claro que o Jev não compete com ele ali. A escolha da tool é uma decisão tipada, não tool calling nativo: é o que permite comparar Jev e LLM na mesma pergunta.
+
+### 5.1 Os dados
+
+Postgres 17 em Docker (`docker-compose.yml`), com a empresa fictícia Mercado Jornada: regiões, categorias, produtos, vendedores, clientes, pedidos, itens de pedido e metas, de janeiro de 2025 a setembro de 2026. O seed é gerado por script com semente fixa e versionado como SQL.
+
+As tools leem views sem parâmetros, pequenas (até 25 linhas), sem `now()`:
+
+| Tool | View | Conteúdo |
+|---|---|---|
+| `vendas_mensal` | `vw_vendas_mensal` | receita, pedidos, ticket médio e variação por mês |
+| `vendas_por_categoria` | `vw_vendas_por_categoria` | receita, unidades, margem e participação por categoria em 2026 |
+| `top_produtos` | `vw_top_produtos` | os 10 produtos de maior receita em 2026 |
+| `vendas_por_vendedor` | `vw_vendas_por_vendedor` | receita, pedidos, meta e atingimento por vendedor em 2026 |
+| `vendas_por_regiao` | `vw_vendas_por_regiao` | receita, pedidos, clientes ativos e participação por região em 2026 |
+| `top_clientes` | `vw_top_clientes` | os 10 clientes de maior receita em 2026 |
+| `kpis` | `vw_kpis` | indicadores gerais de 2026: receita, crescimento, pedidos, ticket médio, clientes ativos, atingimento de meta, cancelamento, margem |
+
+O nome da view vem sempre do registro de tools no código, nunca do modelo. A aplicação conecta com um usuário que só lê as views.
 
 ---
 
@@ -77,27 +97,28 @@ O node `reply` existe de propósito: é onde o LLM é insubstituível, e deixa c
 
 ### Dentro (P0, obrigatório para o workshop)
 
-1. Grafo LangGraph com os cinco nodes acima e arestas condicionais por confiança.
+1. Grafo LangGraph com os seis nodes acima e arestas condicionais por confiança.
 2. Abstração `DecisionProvider` com três implementações: `JevProvider`, `LLMProvider`, `ReplayProvider`.
 3. Modo "ambos": o node executa os dois providers em paralelo, registra os dois resultados e segue o fluxo com o provider marcado como primário.
-4. Backend FastAPI com execução de um ticket e de um lote, eventos em tempo real via SSE.
-5. Frontend React com três telas: configuração do grafo, playground de um ticket, dashboard do lote.
-6. Golden set de tickets em português com rótulos, versionado no repositório.
-7. Modo replay: respostas gravadas de execuções reais, com a latência original, para rodar sem chaves.
+4. Backend FastAPI com execução de uma pergunta e de um lote, eventos em tempo real via SSE.
+5. Frontend React com três telas: configuração do grafo, playground de uma pergunta, dashboard do lote.
+6. Golden set de perguntas em português com rótulos, versionado no repositório.
+7. Modo replay: respostas gravadas dos modelos e resultados gravados das tools, com a latência original, para rodar sem chaves e sem banco.
 8. Exportação dos resultados em CSV e JSON.
+9. Postgres em Docker com tabelas, seed e views de vendas, e as tools que leem as views. Exigido só em modo live e para gravar o replay.
 
 ### Dentro (P1, se der tempo antes de sábado)
 
-9. Tabela de preços editável na interface.
-10. Curva de calibração e "taxa de automação por limiar" no dashboard.
-11. Histórico de execuções persistido em SQLite.
+10. Tabela de preços editável na interface.
+11. Curva de calibração e "taxa de automação por limiar" no dashboard.
+12. Histórico de execuções persistido em SQLite.
 
 ### Fora
 
 - Autenticação, multiusuário, deploy em nuvem.
 - Fine-tuning de qualquer modelo.
-- Integração com sistemas reais de tickets (Zendesk, Freshdesk).
-- Suporte a outros casos de uso além de triagem (a abstração permite, mas não entra no workshop).
+- Tool calling nativo do LLM, SQL gerado pelo modelo e tools com parâmetros.
+- Integração com sistemas reais de vendas (ERP, CRM).
 
 ---
 
@@ -107,7 +128,7 @@ O node `reply` existe de propósito: é onde o LLM é insubstituível, e deixa c
 ┌──────────────────────────────┐        SSE / REST        ┌──────────────────────────┐
 │  Frontend (React + Vite)     │ ◄──────────────────────► │  Backend (FastAPI)       │
 │  - Config do grafo           │                          │  - LangGraph runtime     │
-│  - Playground (1 ticket)     │                          │  - DecisionProvider      │
+│  - Playground (1 pergunta)   │                          │  - DecisionProvider      │
 │  - Dashboard (lote)          │                          │    ├─ JevProvider        │
 └──────────────────────────────┘                          │    ├─ LLMProvider        │
                                                           │    └─ ReplayProvider     │
@@ -118,15 +139,18 @@ O node `reply` existe de propósito: é onde o LLM é insubstituível, e deixa c
                                               ┌─────────────────────┼─────────────────────┐
                                               ▼                     ▼                     ▼
                                         TypeSafe API          API do LLM           fixtures/replay/
+
+                         Postgres (views de vendas): só em modo live e na gravação do replay
 ```
 
 ### 7.1 Stack
 
 | Camada | Escolha | Motivo |
 |---|---|---|
-| Backend | Python 3.12, FastAPI, LangGraph, LangChain (chat models), `typesafe-sdk`, pydantic, httpx, uv | Padrão da comunidade; LangGraph já é o que o público usa |
-| Frontend | React 18, Vite, TypeScript, Tailwind, `@xyflow/react` (grafo), recharts (gráficos), EventSource nativo | Grafo visual do fluxo com estado por node; simples de rodar |
-| Armazenamento | JSONL em `runs/` (P0); SQLite via SQLModel (P1) | Zero configuração no workshop |
+| Backend | Python 3.12, FastAPI, LangGraph, LangChain (chat models), `typesafe-sdk`, pydantic, httpx, asyncpg, uv | Padrão da comunidade; LangGraph já é o que o público usa |
+| Frontend | React 18, Vite, TypeScript, Tailwind v4, recharts (gráficos), EventSource nativo | Linha do tempo das etapas com estado por node; simples de rodar |
+| Dados de vendas | Postgres 17 em Docker, scripts SQL de init em `db/init/` | Um comando para subir; seed determinístico |
+| Armazenamento de execuções | JSONL em `runs/` (P0); SQLite via SQLModel (P1) | Zero configuração no workshop |
 | Config | `.env` com `TYPESAFE_API_KEY`, `OPENAI_API_KEY` e `ANTHROPIC_API_KEY`; `config/graph.yaml` para providers, catálogo de modelos e limiares; `config/pricing.yaml` para preços | Tudo versionável, nada hardcoded |
 
 ### 7.2 A peça central: `DecisionSpec`
@@ -135,7 +159,7 @@ Uma única definição de pergunta alimenta os dois providers. É o que torna a 
 
 ```python
 class DecisionSpec(BaseModel):
-    name: str                      # "fila", "urgencia", "pede_reembolso"
+    name: str                      # "tool", "injection", "fiel_aos_dados"
     type: Literal["choice", "score", "noul"]
     instructions: str              # a pergunta, em português
     criteria: dict | list | None   # opções (choice), níveis (score), true/false (noul)
@@ -148,7 +172,7 @@ class NodeSpec(BaseModel):
 
 - `JevProvider` converte o `NodeSpec` diretamente no corpo da chamada `system_one` (state + questions).
 - `LLMProvider` converte o mesmo `NodeSpec` em um prompt com as mesmas instruções e critérios, mais um JSON Schema gerado por pydantic. Usa structured output quando o provedor suporta; registra falha de parsing quando não vem JSON válido. Pede também um campo `confidence` de 0 a 1 por pergunta, para a comparação com a confiança calibrada do Jev.
-- `ReplayProvider` lê de `fixtures/replay/<provider>/<ticket_id>.json` e reproduz resposta e latência gravadas.
+- `ReplayProvider` lê de `fixtures/replay/<provider>/<question_id>.json` e reproduz resposta e latência gravadas.
 
 ### 7.3 Interface do provider
 
@@ -194,12 +218,12 @@ Decisão de design: em modo "ambos", apenas o resultado do provider primário in
 ### 7.5 Estado do grafo
 
 ```python
-class TriageState(TypedDict):
+class SalesState(TypedDict):
     run_id: str
-    ticket: Ticket                 # id, texto, cliente, canal, metadados
-    policy: str                    # política de reembolso, entra no payload de triage e verify
+    question: dict                 # id e text; os rótulos do golden set nunca entram
     guardrail: dict | None
     triage: dict | None
+    tool_result: dict | None       # tool, view, columns, rows, row_count, truncated, latency_ms
     draft_reply: str | None
     verify: dict | None
     action: Literal["auto", "human", "blocked"] | None
@@ -211,8 +235,9 @@ class TriageState(TypedDict):
 | Aresta | Regra padrão |
 |---|---|
 | `guardrail → END` | qualquer noul de risco ≥ 0,70 |
-| `triage → human` | `fila.confidence` < 0,80 |
-| `verify → human` | `segue_politica` < 0,80 ou `promete_fora` ≥ 0,30 |
+| `triage → human` | `tool.confidence` < 0,80, ou a tool escolhida é `nenhuma` |
+| `tool → human` | a consulta falhou |
+| `verify → human` | `fiel_aos_dados` < 0,80 ou `inventa_numero` ≥ 0,30 |
 
 Os limiares são exemplo. O workshop mostra como escolhê-los pelo dashboard.
 
@@ -246,15 +271,16 @@ Notas:
 |---|---|---|
 | RF-01 | Usuário escolhe, por node de decisão, entre `llm`, `jev` e `both`, e qual é o primário | P0 |
 | RF-02 | Usuário escolhe o modelo de LLM num dropdown alimentado pelo catálogo da seção 7.7 (OpenAI e Anthropic), por node ou global | P0 |
-| RF-03 | Usuário envia um ticket digitado ou seleciona um do golden set | P0 |
-| RF-04 | Backend executa o grafo e emite eventos: `run.started`, `node.started`, `provider.finished`, `node.finished`, `run.finished` | P0 |
+| RF-03 | Usuário envia uma pergunta digitada ou seleciona uma do golden set | P0 |
+| RF-04 | Backend executa o grafo e emite eventos: `run.started`, `node.started`, `provider.finished`, `tool.finished`, `node.finished`, `run.finished` | P0 |
 | RF-05 | Playground mostra, por node, os cards dos providers lado a lado com respostas, confiança, latência, tokens e custo | P0 |
 | RF-06 | Playground destaca discordâncias entre os dois providers | P0 |
 | RF-07 | Playground mostra o caminho tomado no grafo e a ação final | P0 |
-| RF-08 | Usuário dispara lote de N tickets do golden set (N configurável, padrão 100) com barra de progresso | P0 |
+| RF-08 | Usuário dispara lote de N perguntas do golden set (N configurável) com barra de progresso | P0 |
 | RF-09 | Dashboard calcula e exibe as métricas da seção 9 por node e por provider | P0 |
 | RF-10 | Exportação de resultados em CSV e JSON | P0 |
-| RF-11 | Modo replay funciona sem nenhuma chave de API | P0 |
+| RF-11 | Modo replay funciona sem nenhuma chave de API e sem banco | P0 |
+| RF-15 | As tools leem só views do registro, com usuário somente-leitura e limite de linhas | P0 |
 | RF-12 | Tabela de preços editável na interface, com Jev pré-preenchido (US$ 0,042/M entrada, US$ 0 saída) | P1 |
 | RF-13 | Curva de calibração e automação por limiar | P1 |
 | RF-14 | Histórico de execuções com comparação entre lotes | P1 |
@@ -277,16 +303,15 @@ Notas:
 
 | Métrica | Perguntas | Definição |
 |---|---|---|
-| Acurácia | `fila`, `urgencia` | acerto contra o rótulo do golden set |
-| F1 macro | `fila` | sensível a classes raras |
-| Erro absoluto médio | `urgencia` | distância entre nível previsto e rotulado |
-| Acurácia binária | nouls | com limiar 0,5 |
-| Brier score e ECE | todas | Jev: probabilidades; LLM: `confidence` autorrelatada. É o gráfico que mostra o que "calibrado" significa |
-| Taxa de concordância | todas | % de tickets em que Jev e LLM deram a mesma resposta |
+| Acurácia | `tool` | acerto contra o rótulo do golden set |
+| F1 macro | `tool` | sensível a classes raras |
+| Acurácia binária | nouls do guardrail | com limiar 0,5 |
+| Brier score e ECE | todas | Jev: probabilidades; LLM: `confidence` autorrelatada (P1) |
+| Taxa de concordância | todas | % de perguntas em que Jev e LLM deram a mesma resposta |
 | p50 / p95 de latência | por node | |
-| Custo total e custo por 1.000 tickets | por node e total | |
+| Custo total e custo por 1.000 perguntas | por node e total | |
 | Falha de parsing | LLM | % de chamadas com `parse_ok = False` |
-| Taxa de automação por limiar | `fila` | para cada limiar t: % dos tickets com confiança ≥ t e acurácia dentro desse subconjunto. Responde "com limiar 0,85, automatizo quanto, com que precisão?" |
+| Taxa de automação por limiar | `tool` | % das perguntas com confiança ≥ t e acurácia nesse subconjunto (P1) |
 
 ### 9.3 Golden set
 
@@ -294,16 +319,16 @@ Arquivo `data/golden_set.json`, versionado, no formato:
 
 ```json
 {
-  "id": "tk-0042",
-  "text": "Fui cobrado duas vezes no pedido A-104 e ninguém responde há 3 dias. Quero o reembolso hoje ou cancelo.",
-  "labels": { "fila": "financeiro", "urgencia": 2, "pede_reembolso": true, "risco_churn": true },
+  "id": "q-042",
+  "text": "Qual região vendeu mais este ano?",
+  "labels": { "tool": "vendas_por_regiao" },
   "guardrail": { "injection": false, "dado_sensivel": false, "fora_escopo": false },
-  "tags": ["cobranca-duplicada", "churn"],
-  "difficulty": "medium"
+  "tags": ["regiao"],
+  "difficulty": "easy"
 }
 ```
 
-Decidido: 300 tickets sintéticos em português, gerados por LLM a partir de uma taxonomia de 25 situações e revisados manualmente, mais 30 casos adversariais para o guardrail (injection, CPF e cartão no texto, pedidos fora de escopo). Sintético evita LGPD e dá ground truth limpo. Sem dados reais nesta versão.
+Decidido: 60 perguntas de vendas escritas à mão (7 por tool, mais 11 que nenhuma view responde) e 20 casos adversariais para o guardrail. Os dados são fictícios, sem dado pessoal.
 
 ---
 
@@ -318,17 +343,17 @@ Decidido: 300 tickets sintéticos em português, gerados por LLM a partir de uma
 
 ### Tela 2: Playground
 
-- Área de texto do ticket e seletor do golden set.
-- Grafo do fluxo renderizado com `@xyflow/react`, com os cinco nodes e as arestas condicionais. Cada node muda de cor conforme os eventos SSE (aguardando, rodando, concluído, pulado, bloqueado) e a aresta tomada fica destacada. Clicar num node abre os cards dos providers abaixo.
-- Para cada node de decisão: dois cards lado a lado, um por provider. Cada card: respostas por pergunta, confiança, barra de probabilidades (Jev), latência, tokens, custo, badge de `parse_ok` e `values_in_schema`. Perguntas com respostas diferentes ficam destacadas.
-- Rascunho de resposta do `reply`, resultado do `verify`, ação final e o caminho tomado.
+- Campo da pergunta e perguntas de exemplo do golden set.
+- Linha do tempo das seis etapas. Cada etapa mostra o estado (aguardando, rodando, concluída, pulada, bloqueada), um resumo de uma frase e a latência, conforme os eventos SSE.
+- Detalhe sob demanda: em cada etapa de decisão, dois cards lado a lado, um por provider, com respostas, confiança, barra de probabilidades (Jev), latência, tokens, custo, badge de `parse_ok` e `values_in_schema`. Perguntas com respostas diferentes ficam destacadas. Na etapa `tool`, a tabela com os dados que a view devolveu.
+- Resposta final, com a ação e, quando não é liberada, o motivo.
 
 ### Tela 3: Dashboard do lote
 
-- Controles: N tickets, filtro por tag, botão de executar, progresso.
+- Controles: N perguntas, filtro por tag, botão de executar, progresso.
 - Cards de resumo: acurácia, custo total, p95, concordância, por provider.
 - Gráficos: distribuição de latência (histograma por provider), custo acumulado por node, acurácia por pergunta, (P1) curva de calibração, (P1) automação por limiar.
-- Tabela de tickets com filtro "só discordâncias" e "só erros", abrindo o ticket no playground.
+- Tabela de perguntas com filtro "só discordâncias" e "só erros", abrindo a pergunta no playground.
 - Botões de exportar CSV e JSON.
 
 Idioma da interface: português.
@@ -342,8 +367,9 @@ Idioma da interface: português.
 | GET | `/config` | configuração atual do grafo (providers, limiares, modelos) |
 | PUT | `/config` | atualiza configuração |
 | GET | `/pricing` / PUT `/pricing` | tabela de preços |
-| GET | `/dataset?tag=&limit=` | tickets do golden set |
-| POST | `/runs` | executa um ticket; retorna `run_id` |
+| GET | `/dataset?tag=&limit=` | perguntas do golden set |
+| GET | `/tools` | registro de tools (nome, título, descrição, view) |
+| POST | `/runs` | executa uma pergunta; retorna `run_id` |
 | GET | `/runs/{run_id}/events` | SSE com os eventos da execução |
 | GET | `/runs/{run_id}` | resultado completo |
 | POST | `/batches` | executa um lote; retorna `batch_id` |
@@ -364,6 +390,7 @@ jev-jornada/
 │   │   ├── main.py              # FastAPI, rotas, SSE
 │   │   ├── graph.py             # LangGraph: nodes, arestas, estado
 │   │   ├── specs.py             # NodeSpec e DecisionSpec dos 3 nodes de decisão
+│   │   ├── tools.py             # registro de tools e leitura das views
 │   │   ├── providers/
 │   │   │   ├── base.py          # Protocol, ProviderResult, Answer
 │   │   │   ├── jev.py
@@ -381,12 +408,13 @@ jev-jornada/
 ├── frontend/
 │   └── src/
 │       ├── pages/ (Config, Playground, Batch)
-│       ├── components/ (FlowGraph, ProviderCard, DiffBadge, charts)
+│       ├── components/ (PipelineTimeline, ProviderCard, DiffBadge, charts, ui)
 │       └── lib/ (api.ts, sse.ts, types.ts)
 ├── data/
 │   ├── golden_set.json
-│   ├── policy.md                # política de reembolso usada no payload
-│   └── scripts/generate_golden_set.py
+│   └── scripts/generate_sales_seed.py
+├── db/init/                     # schema, seed, views e role do Postgres
+├── docker-compose.yml
 ├── runs/                        # gitignored
 ├── .env.example
 └── README.md
@@ -403,7 +431,7 @@ Antes de quebrar o projeto em SPECs e implementar qualquer coisa, o repositório
 | Tema | Regra |
 |---|---|
 | Branching | Trunk-based. `main` sempre executável, protegida. Todo trabalho em branch curta (`feat/`, `fix/`, `chore/`, `docs/`, `data/`) que volta por pull request com squash merge |
-| Commits | Conventional Commits: `tipo(escopo): descrição`. Escopos: `backend`, `frontend`, `graph`, `providers`, `data`, `config`, `docs` |
+| Commits | Conventional Commits: `tipo(escopo): descrição`. Escopos: `backend`, `frontend`, `graph`, `providers`, `data`, `config`, `docs`, `db` |
 | Pull request | Template com quatro perguntas: o que muda, como testar, afeta o modo replay?, afeta métricas ou preços? |
 | Tags | `step-0` a `step-5` marcando os estados do workshop, criadas após o ensaio e nunca movidas. Versão completa: `v1.0.0` |
 | Segredos | `.env` no `.gitignore` desde o primeiro commit; `.env.example` com as variáveis vazias; `pre-commit` com `gitleaks`; secret scanning do GitHub ligado. Chave vazada é revogada, não reescrita |
@@ -414,7 +442,7 @@ Antes de quebrar o projeto em SPECs e implementar qualquer coisa, o repositório
 
 ### 13.2 CI mínima
 
-Um workflow do GitHub Actions por pull request: `ruff` e `pytest` no backend; `eslint`, `tsc --noEmit` e `vite build` no frontend; e um job que executa o grafo em modo replay com três tickets do golden set. Esse último job é o contrato do projeto: tem que funcionar sem nenhuma chave.
+Um workflow do GitHub Actions por pull request: `ruff` e `pytest` no backend; `eslint`, `tsc --noEmit` e `vite build` no frontend; e um job que executa o grafo em modo replay com três perguntas do golden set. Esse último job é o contrato do projeto: tem que funcionar sem nenhuma chave e sem banco.
 
 ### 13.3 Harness do agente
 
@@ -452,7 +480,7 @@ Curto, factual, atualizado a cada SPEC concluída. Seções:
 
 1. **O que é o projeto**, em três linhas, com link para `docs/PRD.md` e `docs/specs/`.
 2. **Como rodar**: `uv sync`, `uv run uvicorn app.main:app --reload`, `npm install`, `npm run dev`, `PROVIDER_MODE=replay` como padrão de desenvolvimento. Rodar com chaves reais só quando a tarefa pedir.
-3. **Como testar**: `uv run pytest`, `npm run test`, e o comando do replay de três tickets. Toda SPEC concluída tem teste; PR sem teste não entra.
+3. **Como testar**: `uv run pytest`, `npm run test`, e o comando do replay de três perguntas. Toda SPEC concluída tem teste; PR sem teste não entra.
 4. **Convenções**: Conventional Commits, branch por SPEC, squash merge, nunca commit em `main`, nunca `git push --force`, nunca mover tags.
 5. **Regras do domínio**: o mesmo `NodeSpec` alimenta os dois providers (não criar prompts separados por provider); em modo `both` só o primário segue no fluxo; `reply` é só LLM; preços vêm de `pricing.yaml`, nunca hardcoded; tokens e latência vêm da resposta e do relógio monotônico, nunca estimados.
 6. **O que não tocar sem pedir**: `data/golden_set.json`, `fixtures/replay/`, `config/pricing.yaml`, limiares em `graph.yaml`. Mudanças nesses arquivos alteram o resultado da comparação e precisam de commit `data:` ou `config:` explícito e revisão humana.
@@ -476,8 +504,10 @@ Só depois deste checklist as SPECs são detalhadas e a implementação começa,
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
+| Participante sem Docker | Não sobe o Postgres | Replay usa resultados gravados das tools; o banco só é exigido em modo live |
+| Seed ou views mudam depois da gravação | Fixtures citam números que não existem mais | `db/init/` é arquivo protegido; teste de reprodutibilidade do seed |
 | Participantes sem chave do Jev, da OpenAI ou da Anthropic | Não conseguem rodar o real | Modo replay com respostas gravadas pelo apresentador, que tem as três chaves no `.env` |
-| Wi-Fi do evento ou rate limit da API | Demo ao vivo trava | Replay como fallback com um toggle; lote ao vivo limitado a 100 tickets; concorrência 5 |
+| Wi-Fi do evento ou rate limit da API | Demo ao vivo trava | Replay como fallback com um toggle; lote ao vivo limitado a 100 perguntas; concorrência 5 |
 | Custo do LLM no lote | Surpresa na fatura | Estimativa exibida antes de rodar; limite de N no backend |
 | Não determinismo dos modelos | Números mudam entre execuções | Mostrar isso como feature: rodar duas vezes e ver a variação; replay é determinístico |
 | Preços dos modelos mudam | Custo errado | `pricing.yaml` com data e fonte; conferir OpenAI e Anthropic na véspera |
@@ -494,8 +524,11 @@ Só depois deste checklist as SPECs são detalhadas e a implementação começa,
 | Modelo de decisão | Jev (`jev-1.13.0`), com `TYPESAFE_API_KEY` no `.env` |
 | LLMs da comparação | Dropdown com o catálogo da seção 7.7: GPT-6 Sol e Luna, GPT-5.6 Sol, Terra e Luna, Claude Opus 5.5, Sonnet 5.5 e Haiku 4.5. Chaves `OPENAI_API_KEY` e `ANTHROPIC_API_KEY` no `.env`. Sem GPT-6 Astra |
 | Quem roda o modo real | O apresentador. Quem não tiver chaves usa o modo replay |
-| Golden set | 300 tickets sintéticos mais 30 adversariais. Sem dados reais nesta versão |
-| Grafo no frontend | `@xyflow/react`, com estado por node atualizado pelos eventos SSE |
+| Caso de uso | Agente de vendas sobre views do Postgres; substitui a triagem de tickets (02/10) |
+| Escolha da tool | Decisão tipada (`choice`), comparável entre Jev e LLM; sem tool calling nativo |
+| Views | Sem parâmetros; um resultado gravado por tool serve o replay de qualquer pergunta |
+| Golden set | 60 perguntas de vendas mais 20 adversariais. Dados fictícios |
+| Fluxo no frontend | Linha do tempo das etapas, atualizada pelos eventos SSE; sem `@xyflow/react` |
 | Licença | O repositório não usa licença MIT. Nenhum arquivo de licença por enquanto |
 
 Não há decisões em aberto nesta versão.
@@ -510,4 +543,5 @@ Não há decisões em aberto nesta versão.
 - **choice / score / noul:** os três tipos de pergunta do Jev: escolha entre opções, nota numa rubrica, probabilidade de uma afirmação ser verdadeira.
 - **Provider primário:** em modo "ambos", o provider cuja resposta segue no fluxo do grafo.
 - **Replay:** execução a partir de respostas gravadas, sem chamar APIs.
-- **Golden set:** conjunto de tickets rotulados que serve de ground truth.
+- **Golden set:** conjunto de perguntas rotuladas que serve de ground truth.
+- **Tool:** leitura de uma view analítica do Postgres, escolhida pela triagem.
