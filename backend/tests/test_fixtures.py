@@ -36,3 +36,11 @@ def test_fixtures_sao_de_perguntas_do_golden_set():
     ids = {q.id for q in load_golden_set()}
 
     assert {path.stem for path in FIXTURES} <= ids
+
+
+def test_resposta_gravada_diz_de_qual_consulta_e():
+    for path in (FIXTURES_DIR / "llm").glob("*.json"):
+        fixture = load_fixture(path)
+        if "reply" in fixture:
+            jev = load_fixture(FIXTURES_DIR / "jev" / path.name)
+            assert fixture["reply"]["tool"] == jev["nodes"]["triage"]["answers"]["tool"]["value"]

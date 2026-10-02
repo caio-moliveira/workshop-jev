@@ -104,7 +104,7 @@ function Details({ node, run }: { node: NodeName; run: RunViewState }) {
   if (outcomes.length === 0) return null
   const diffs = isDecisionNode(node) ? disagreements(node, outcomes) : new Set<string>()
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className={cx('grid gap-3', outcomes.length > 1 && 'md:grid-cols-2')}>
       {outcomes.map((outcome) => (
         <ProviderCard
           key={outcome.provider}
@@ -117,21 +117,21 @@ function Details({ node, run }: { node: NodeName; run: RunViewState }) {
   )
 }
 
-const DETAILS_LABEL: Partial<Record<NodeName, string>> = {
-  guardrail: 'Comparar Jev × LLM',
-  triage: 'Comparar Jev × LLM',
-  verify: 'Comparar Jev × LLM',
-  tool: 'Ver dados',
-  reply: 'Ver custo',
+function detailsLabel(node: NodeName, run: RunViewState): string {
+  if (node === 'tool') return 'Ver dados'
+  if (node === 'reply') return 'Ver custo'
+  return run.outcomes[node].length > 1 ? 'Comparar Jev × LLM' : 'Ver resposta do modelo'
 }
 
 interface Props {
   run: RunViewState
   thresholds: Thresholds
+  /** Esconde a dica de cada etapa: na visão lado a lado as colunas são estreitas. */
+  compact?: boolean
 }
 
 /** As seis etapas do agente, em ordem, com o estado de cada uma e o detalhe sob demanda. */
-export function PipelineTimeline({ run, thresholds }: Props) {
+export function PipelineTimeline({ run, thresholds, compact = false }: Props) {
   return (
     <ol className="relative flex flex-col" aria-label="Etapas do agente">
       {NODES.map((node, index) => {
@@ -167,7 +167,12 @@ export function PipelineTimeline({ run, thresholds }: Props) {
                   )}
                 >
                   {NODE_LABELS[node]}
-                  <span className="ml-2 hidden text-xs font-normal text-slate-400 sm:inline">
+                  <span
+                    className={cx(
+                      'ml-2 hidden text-xs font-normal text-slate-400',
+                      !compact && 'sm:inline',
+                    )}
+                  >
                     {NODE_HINTS[node]}
                   </span>
                 </h3>
@@ -181,7 +186,7 @@ export function PipelineTimeline({ run, thresholds }: Props) {
                   </span>
                 )}
               </p>
-              {hasDetails && DETAILS_LABEL[node] && (
+              {hasDetails && node !== 'act' && (
                 <details className="group mt-2">
                   <summary className="text-brand-600 hover:text-brand-700 inline-flex items-center gap-1 rounded text-xs font-medium select-none [&::-webkit-details-marker]:hidden">
                     <svg
@@ -197,7 +202,7 @@ export function PipelineTimeline({ run, thresholds }: Props) {
                         strokeLinecap="round"
                       />
                     </svg>
-                    {DETAILS_LABEL[node]}
+                    {detailsLabel(node, run)}
                   </summary>
                   <div className="mt-3">
                     <Details node={node} run={run} />

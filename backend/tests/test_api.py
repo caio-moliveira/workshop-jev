@@ -192,3 +192,42 @@ async def test_resultado_sobrevive_ao_reinicio_pelo_jsonl(client):
     restarted = create_app(runs_dir=client.runs_dir, simulate_latency=False)
     async with AsyncClient(transport=ASGITransport(app=restarted), base_url="http://test") as c:
         assert (await c.get(f"/runs/{run_id}")).json()["run_id"] == run_id
+
+
+@pytest.mark.parametrize(
+    "question_id,action,path",
+    [
+        # O Jev escolhe kpis com 86% e libera; o LLM escolhe vendedor com 72% e para na triagem.
+        ("q-045", "auto", ["guardrail", "triage", "tool", "reply", "verify", "act"]),
+        ("adv-001", "blocked", ["guardrail"]),
+    ],
+)
+async def test_pipeline_jev_decide_sozinho(client, question_id, action, path):
+    response = await client.post("/runs", json={"question_id": question_id, "pipeline": "jev"})
+    result = await wait_finished(client, response.json()["run_id"])
+
+    assert (result["action"], result["path"]) == (action, path)
+    decisions = [m for m in result["metrics"] if m["node"] != "reply"]
+    assert {m["provider"] for m in decisions} == {"jev"}
+
+
+async def test_pipeline_llm_segue_a_escolha_do_llm(client):
+    response = await client.post("/runs", json={"question_id": "q-045", "pipeline": "llm"})
+    result = await wait_finished(client, response.json()["run_id"])
+
+    assert result["triage"]["tool"]["value"] == "vendas_por_vendedor"
+    assert result["action"] == "human"
+    assert result["path"] == ["guardrail", "triage", "act"]
+    assert {m["provider"] for m in result["metrics"]} == {"llm"}
+
+
+async def test_pipeline_nao_muda_a_configuracao(client):
+    await client.post("/runs", json={"question_id": "q-001", "pipeline": "llm"})
+
+    assert (await client.get("/config")).json()["providers"]["triage"] == "both"
+
+
+async def test_pipeline_invalido_e_422(client):
+    response = await client.post("/runs", json={"question_id": "q-001", "pipeline": "gpt"})
+
+    assert response.status_code == 422

@@ -82,7 +82,7 @@ uv run --env-file ../.env pytest -m live
 
 ## As três telas
 
-- **Playground**: a pergunta, a linha do tempo das seis etapas (com os tempos de Jev e LLM em cada uma) e a resposta. Cada etapa abre o detalhe: a comparação Jev × LLM ou os dados que a view devolveu.
+- **Playground**: a pergunta e, em duas colunas, o pipeline Jev e o pipeline LLM rodando ao mesmo tempo, cada um com as seis etapas e a sua resposta final. Cada etapa abre o detalhe: o que o modelo respondeu ou os dados que a view devolveu. A visão "Fluxo único" mostra o modo Ambos, com Jev e LLM respondendo cada etapa com a mesma entrada.
 - **Lote**: N perguntas do golden set, com acerto da consulta, latência, custo e concordância por provider, gráficos, tabela e exportação em CSV ou JSON.
 - **Configuração**: por etapa, `LLM`, `Jev` ou `Ambos`; qual é o primário; o modelo de LLM, com preço; os limiares; a lista de tools.
 

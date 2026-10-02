@@ -74,3 +74,26 @@ async def test_simula_a_latencia_gravada(fixtures_dir):
     await provider.decide(TRIAGE, {"question_id": "q-0042"})
 
     assert (time.perf_counter() - start) * 1000 >= 50
+
+
+async def test_resposta_gravada_para_outra_tool_nao_e_reaproveitada(tmp_path):
+    from app.providers.reply import ReplayReplyWriter
+
+    (tmp_path / "llm").mkdir()
+    reply = {
+        "tool": "kpis",
+        "text": "A receita foi R$ 10.",
+        "model": "m",
+        "latency_ms": 1.0,
+        "tokens_in": 1,
+        "tokens_out": 1,
+        "cost_usd": 0.0,
+    }
+    fixture = {"question_id": "q-1", "config_version": "2", "nodes": {}, "reply": reply}
+    (tmp_path / "llm" / "q-1.json").write_text(json.dumps(fixture), encoding="utf-8")
+    writer = ReplayReplyWriter(simulate_latency=False, fixtures_dir=tmp_path)
+
+    written = await writer.write({"question_id": "q-1", "tool": {"name": "kpis"}})
+    assert written.text == "A receita foi R$ 10."
+    with pytest.raises(ReplayMissError, match="vendas_mensal"):
+        await writer.write({"question_id": "q-1", "tool": {"name": "vendas_mensal"}})

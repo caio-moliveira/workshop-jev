@@ -59,3 +59,16 @@ describe('PipelineTimeline', () => {
     ).toBeNull()
   })
 })
+
+describe('PipelineTimeline com um provider só', () => {
+  it('o detalhe da decisão vira "Ver resposta do modelo"', () => {
+    const jevOnly = HAPPY.filter(
+      (e) => !(e.type === 'provider.finished' && e.data.provider === 'llm' && e.node !== 'reply'),
+    )
+    render(<PipelineTimeline run={replay(jevOnly)} thresholds={THRESHOLDS} compact />)
+
+    const triage = screen.getByTestId('step-triage')
+    expect(within(triage).getByText('Ver resposta do modelo')).toBeTruthy()
+    expect(within(triage).queryByText('Comparar Jev × LLM')).toBeNull()
+  })
+})

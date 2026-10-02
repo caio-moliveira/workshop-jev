@@ -51,7 +51,11 @@ export function getDataset(params: { tag?: string; limit?: number } = {}) {
 
 export const getTools = () => request<Tool[]>('/tools')
 
-export const postRun = (body: { question_id: string } | { text: string }) =>
+export type RunBody = ({ question_id: string } | { text: string }) & {
+  pipeline?: 'jev' | 'llm'
+}
+
+export const postRun = (body: RunBody) =>
   request<{ run_id: string }>('/runs', {
     method: 'POST',
     body: JSON.stringify(body),
