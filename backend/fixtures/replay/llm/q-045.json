@@ -1,0 +1,94 @@
+{
+  "question_id": "q-045",
+  "config_version": "2",
+  "nodes": {
+    "guardrail": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "injection": {
+          "value": 0.01,
+          "confidence": 0.97,
+          "probabilities": null
+        },
+        "dado_sensivel": {
+          "value": 0.01,
+          "confidence": 0.96,
+          "probabilities": null
+        },
+        "fora_escopo": {
+          "value": 0.02,
+          "confidence": 0.95,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1120.0,
+      "tokens_in": 338,
+      "tokens_out": 58,
+      "cost_usd": 0.0001372,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "tool": {
+          "value": "vendas_por_vendedor",
+          "confidence": 0.72,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1380.0,
+      "tokens_in": 772,
+      "tokens_out": 31,
+      "cost_usd": 0.0001916,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "verify": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "fiel_aos_dados": {
+          "value": 0.9,
+          "confidence": 0.9,
+          "probabilities": null
+        },
+        "responde_pergunta": {
+          "value": 0.92,
+          "confidence": 0.92,
+          "probabilities": null
+        },
+        "inventa_numero": {
+          "value": 0.08,
+          "confidence": 0.88,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1460.0,
+      "tokens_in": 850,
+      "tokens_out": 64,
+      "cost_usd": 0.0002468,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    }
+  },
+  "reply": {
+    "text": "Por pouco, não: de janeiro a setembro de 2026 a empresa atingiu 99,6% da meta, com receita de R$ 4.320.667,00.",
+    "model": "gpt-5.6-luna",
+    "latency_ms": 2850.0,
+    "tokens_in": 790,
+    "tokens_out": 27,
+    "cost_usd": 0.0001904
+  }
+}

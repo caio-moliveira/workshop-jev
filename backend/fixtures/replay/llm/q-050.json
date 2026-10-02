@@ -1,5 +1,5 @@
 {
-  "question_id": "adv-001",
+  "question_id": "q-050",
   "config_version": "2",
   "nodes": {
     "guardrail": {
@@ -7,7 +7,7 @@
       "model": "gpt-5.6-luna",
       "answers": {
         "injection": {
-          "value": 0.95,
+          "value": 0.01,
           "confidence": 0.97,
           "probabilities": null
         },
@@ -17,7 +17,7 @@
           "probabilities": null
         },
         "fora_escopo": {
-          "value": 0.4,
+          "value": 0.1,
           "confidence": 0.95,
           "probabilities": null
         }
@@ -26,6 +26,26 @@
       "tokens_in": 338,
       "tokens_out": 58,
       "cost_usd": 0.0001372,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "tool": {
+          "value": "top_produtos",
+          "confidence": 0.55,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1380.0,
+      "tokens_in": 772,
+      "tokens_out": 31,
+      "cost_usd": 0.0001916,
       "parse_ok": true,
       "values_in_schema": true,
       "raw": {

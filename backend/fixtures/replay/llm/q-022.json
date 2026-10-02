@@ -1,0 +1,94 @@
+{
+  "question_id": "q-022",
+  "config_version": "2",
+  "nodes": {
+    "guardrail": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "injection": {
+          "value": 0.01,
+          "confidence": 0.97,
+          "probabilities": null
+        },
+        "dado_sensivel": {
+          "value": 0.01,
+          "confidence": 0.96,
+          "probabilities": null
+        },
+        "fora_escopo": {
+          "value": 0.02,
+          "confidence": 0.95,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1120.0,
+      "tokens_in": 338,
+      "tokens_out": 58,
+      "cost_usd": 0.0001372,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "triage": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "tool": {
+          "value": "vendas_por_vendedor",
+          "confidence": 0.95,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1380.0,
+      "tokens_in": 772,
+      "tokens_out": 31,
+      "cost_usd": 0.0001916,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    },
+    "verify": {
+      "provider": "llm",
+      "model": "gpt-5.6-luna",
+      "answers": {
+        "fiel_aos_dados": {
+          "value": 0.95,
+          "confidence": 0.9,
+          "probabilities": null
+        },
+        "responde_pergunta": {
+          "value": 0.97,
+          "confidence": 0.92,
+          "probabilities": null
+        },
+        "inventa_numero": {
+          "value": 0.05,
+          "confidence": 0.88,
+          "probabilities": null
+        }
+      },
+      "latency_ms": 1460.0,
+      "tokens_in": 1220,
+      "tokens_out": 64,
+      "cost_usd": 0.0003208,
+      "parse_ok": true,
+      "values_in_schema": true,
+      "raw": {
+        "fixture": "escrita à mão"
+      }
+    }
+  },
+  "reply": {
+    "text": "Diego Martins, do Sudeste, foi quem mais vendeu em 2026: R$ 474.135,64 em 114 pedidos, 111% da meta. Em seguida vêm Ana Ribeiro (R$ 443.456,10) e Camila Duarte (R$ 413.010,88).",
+    "model": "gpt-5.6-luna",
+    "latency_ms": 2850.0,
+    "tokens_in": 1160,
+    "tokens_out": 44,
+    "cost_usd": 0.0002848
+  }
+}
