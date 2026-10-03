@@ -18,24 +18,7 @@ Este repositório é um jeito simples de testar essa promessa com dados e um flu
 
 Uma pergunta sobre as vendas da empresa fictícia Mercado Jornada passa por seis etapas. Duas são código, uma é geração de texto e três são decisões. É nas decisões que Jev e LLM disputam.
 
-```mermaid
-flowchart LR
-    IN([Pergunta]) --> G[guardrail]
-    G -- risco --> B([Bloqueada])
-    G --> T[triage]
-    T -- baixa confiança --> H([Revisão humana])
-    T --> X[tool]
-    X --> R[reply]
-    R --> V[verify]
-    V -- reprovada --> H
-    V --> A([Liberada])
-    classDef dec fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef code fill:#f1f5f9,stroke:#64748b,color:#0f172a
-    classDef gen fill:#ffedd5,stroke:#ea580c,color:#7c2d12
-    class G,T,V dec
-    class X code
-    class R gen
-```
+![Fluxo: guardrail, triage, tool, reply, verify e act. Azul é decisão, cinza é código, laranja é geração](docs/images/pipeline.png)
 
 | Etapa | Quem decide | O que faz |
 |---|---|---|
