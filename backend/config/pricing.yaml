@@ -3,11 +3,13 @@
 #
 # OpenAI: vigentes desde 30/07/2026 segundo a página de preços (PRD 7.7);
 # conferir no dia do workshop e atualizar reference_date.
-# Anthropic: preencher na véspera. Enquanto estiver null, rodar com esses
-# modelos falha com PricingMissingError em vez de registrar custo zero.
+# Anthropic: tokens base (entrada e saída) da tabela de preços em 03/10/2026;
+# prompt caching fica fora, o custo usa só entrada e saída.
+# Modelo com preço null falha com PricingMissingError em vez de registrar
+# custo zero.
 
-reference_date: "2026-10-01"
-source: "PRD 7.7 (OpenAI, página de preços em 30/07/2026; TypeSafe); Anthropic a preencher"
+reference_date: "2026-10-03"
+source: "PRD 7.7 (OpenAI, página de preços em 30/07/2026; TypeSafe); Anthropic, tabela de preços em 03/10/2026"
 
 models:
   gpt-6-sol: { input: 2.00, output: 10.00 }
@@ -15,7 +17,7 @@ models:
   gpt-5.6-sol: { input: 5.00, output: 30.00 }
   gpt-5.6-terra: { input: 2.00, output: 12.00 }
   gpt-5.6-luna: { input: 0.20, output: 1.20 }
-  claude-opus-5-5: { input: null, output: null }
-  claude-sonnet-5-5: { input: null, output: null }
-  claude-haiku-4-5-20251001: { input: null, output: null }
+  claude-opus-5-5: { input: 4.00, output: 20.00 }
+  claude-sonnet-5-5: { input: 2.00, output: 10.00 }
+  claude-haiku-4-5-20251001: { input: 1.00, output: 5.00 }
   jev-1.13.0: { input: 0.042, output: 0 }

@@ -43,7 +43,7 @@ models:               # US$ por 1M tokens
   # ... os nove modelos do PRD 7.7
 ```
 
-Modelo sem preço em `pricing.yaml` é erro explícito (`PricingMissingError`), não custo zero. Os modelos da Anthropic entram com `input: null, output: null` até alguém preencher na véspera (PRD 7.7): a chave existe para o catálogo, mas rodar com eles falha até haver preço.
+Modelo sem preço em `pricing.yaml` é erro explícito (`PricingMissingError`), não custo zero. Os modelos da Anthropic entram com `input: null, output: null` até alguém preencher na véspera (PRD 7.7): a chave existe para o catálogo, mas rodar com eles falha até haver preço. Preenchidos em 03/10/2026.
 
 ### `backend/app/providers/jev.py`
 

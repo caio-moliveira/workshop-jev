@@ -90,7 +90,7 @@ uv run --env-file ../.env pytest -m live
 
 Três coisas que só quem tem as chaves faz:
 
-1. **Preços da Anthropic**: preencher `backend/config/pricing.yaml` e conferir os da OpenAI. Enquanto estiverem `null`, rodar com Claude falha em vez de registrar custo zero.
+1. **Preços**: os da Anthropic foram preenchidos em 03/10/2026 em `backend/config/pricing.yaml`; falta conferir os da OpenAI. Modelo com preço `null` falha em vez de registrar custo zero.
 2. **Gravar o replay das 80 perguntas**: hoje só 6 têm gravação (escritas à mão a partir dos dados reais do banco), então o lote em replay só roda essas 6. Com o banco no ar:
    ```
    docker compose up -d --wait

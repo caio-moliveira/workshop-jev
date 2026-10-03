@@ -51,3 +51,22 @@ def test_tabela_versionada_tem_data_fonte_e_os_nove_modelos():
     }
     assert pricing.models["jev-1.13.0"].input == pytest.approx(0.042)
     assert pricing.models["jev-1.13.0"].output == 0
+
+
+def test_tabela_versionada_nao_tem_preco_pendente():
+    pricing = load_pricing()
+
+    pendentes = [m for m, p in pricing.models.items() if p.input is None or p.output is None]
+    assert pendentes == []
+
+
+@pytest.mark.parametrize(
+    ("model", "esperado"),
+    [
+        ("claude-opus-5-5", 24.00),
+        ("claude-sonnet-5-5", 12.00),
+        ("claude-haiku-4-5-20251001", 6.00),
+    ],
+)
+def test_precos_da_anthropic_na_tabela_versionada(model, esperado):
+    assert cost_usd(model, 1_000_000, 1_000_000, load_pricing()) == pytest.approx(esperado)

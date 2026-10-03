@@ -90,8 +90,8 @@ async def test_estimativa_de_custo_antes_de_rodar(client):
 
 async def test_estimativa_sem_preco_do_modelo_e_nula(client):
     config = (await client.get("/config")).json()
-    config["llm_model"] = "anthropic:claude-haiku-4-5-20251001"
-    await client.put("/config", json=config)
+    config["llm_model"] = "anthropic:modelo-fora-da-tabela"
+    assert (await client.put("/config", json=config)).status_code == 200
 
     estimate = (await client.get("/batches/estimate", params={"n": 10})).json()
 

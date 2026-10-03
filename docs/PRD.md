@@ -253,13 +253,13 @@ O `LLMProvider` instancia o modelo via `langchain.chat_models.init_chat_model("<
 | GPT-5.6 Sol | OpenAI | `gpt-5.6-sol` | 5,00 / 30,00 |
 | GPT-5.6 Terra | OpenAI | `gpt-5.6-terra` | 2,00 / 12,00 |
 | GPT-5.6 Luna | OpenAI | `gpt-5.6-luna` | 0,20 / 1,20 |
-| Claude Opus 5.5 | Anthropic | `claude-opus-5-5` | preencher em `pricing.yaml` |
-| Claude Sonnet 5.5 | Anthropic | `claude-sonnet-5-5` | preencher em `pricing.yaml` |
-| Claude Haiku 4.5 | Anthropic | `claude-haiku-4-5-20251001` | preencher em `pricing.yaml` |
+| Claude Opus 5.5 | Anthropic | `claude-opus-5-5` | 4,00 / 20,00 |
+| Claude Sonnet 5.5 | Anthropic | `claude-sonnet-5-5` | 2,00 / 10,00 |
+| Claude Haiku 4.5 | Anthropic | `claude-haiku-4-5-20251001` | 1,00 / 5,00 |
 | Jev | TypeSafe | `jev-1.13.0` | 0,042 / 0 |
 
 Notas:
-- Preços da OpenAI são os vigentes desde 30/07/2026 segundo a página de preços; conferir no dia e registrar a data em `pricing.yaml`. Os da Anthropic ficam para preenchimento na véspera.
+- Preços da OpenAI são os vigentes desde 30/07/2026 segundo a página de preços; conferir no dia e registrar a data em `pricing.yaml`. Os da Anthropic são os tokens base da tabela de preços em 03/10/2026; prompt caching fica fora do cálculo de custo.
 - A OpenAI não lançou GPT-6 Terra; o catálogo traz GPT-6 Sol e Luna. Astra fica fora.
 - Padrão do dropdown: GPT-5.6 Luna (o modelo mais próximo em custo do papel que o Jev ocupa). Sol e Opus entram como referência de qualidade.
 - `reasoning_effort` fixo em `none` (OpenAI) e sem *extended thinking* (Anthropic) nos nodes de decisão, para medir o custo de uma decisão simples e manter `function calling` funcional; configurável por modelo em `graph.yaml`.
